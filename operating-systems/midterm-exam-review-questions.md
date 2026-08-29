@@ -64,7 +64,7 @@ Distinguishing between user and kernel mode is supported directly in the hardwar
 
 Such forbidden attempts will actually cause a trap. The executing application will be interrupted, and the hardware will switch control back to the operating system a specific location - the trap handler. At this point, the operating system will have a chance to determine what caused the trap and then decide if it should grant access or perhaps terminate the transgressive process.
 
-This context switch takes CPU cycles to perform which is real overhead on the system. In addition, context switching will most likely invalidate the hardware cache (hot -> cold), meaning that memory accesses for the kernel context will initially come from main memory and not from cache, which is slow.
+This context switch takes CPU cycles to perform which is real overhead on the system. In addition, the kernel brings the content it needs into the hardware cache, replacing some or even all of the application content that was there before (hot -> cold). Memory accesses for the kernel context will initially come from main memory and not from cache, which is slow.
 
 ## What are some of the reasons why user-kernel mode crossing happens?
 Basically, user/kernel mode crossing occurs any time any application needs access to underlying hardware, be it physical memory, storage, or I/O devices.
@@ -276,7 +276,7 @@ In the one-to-one model, there is one kernel thread for every user thread. That 
 
 One downside of this approach is that is it expensive: for every operation we must go to the kernel and pay the cost of a system call. Another downside is that since we are relying on the mechanisms and policies supported by the kernel, we are limited to only those policies and mechanisms. As well, execution of our applications on different operating systems may give different results.
 
-In a so-called many-to-many scenario, there can be one or more user threads scheduled on one or more kernel threads. The kernel is aware that the process is multithreaded since it has assigned multiple kernel level threads to the process. This means that if one kernel level thread blocks on an operation, we can context switch to another, and the process as a whole can proceed. One of the downsides of this model is that is requires extra coordination between the user- and kernel-level thread managers.
+In a so-called many-to-many scenario, m user threads are mapped onto n kernel threads, with m usually larger than n. A user thread runs on one kernel thread at a time, but not necessarily the same one each time it is scheduled. The kernel is aware that the process is multithreaded since it has assigned multiple kernel level threads to the process. This means that if one kernel level thread blocks on an operation, we can context switch to another, and the process as a whole can proceed. One of the downsides of this model is that is requires extra coordination between the user- and kernel-level thread managers.
 
 Signaling in a many to many scenario comes with complexities. If the kernel thread has a signal enabled but the user thread does not, the user threading library may have to send directed signals back down into the kernel to get the right user level thread to respond to the signal.
 
