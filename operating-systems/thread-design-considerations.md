@@ -19,7 +19,7 @@ lecture: thread-design-considerations
 * [31. Semaphores](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf)
 * [32. Common Concurrency Problems](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-bugs.pdf)
 
-## Kernel Vs. User Level Threads
+## Kernel vs. User Level Threads
 Threads can be supported at the user level, the kernel level, or both.
 
 Supporting threads at the kernel level means that the operating system itself is multithreaded. To do this the kernel must maintain some data structure to represent threads, and must also maintain all of the scheduling and syncing mechanisms to make multithreading correct and efficient.
@@ -345,7 +345,7 @@ Dynamic thread creation is expensive! Need to only create a new thread if we nee
 
 To eliminate the cost of dynamic thread creation, the kernel pre-creates and -initializes thread structures for interrupt routines. This can help reduce the time it takes for an interrupt to be handled.
 
-## Interrupts: Top Vs. Bottom Half
+## Interrupts: Top vs. Bottom Half
 When an interrupt is handled in a different thread, we no longer have to disable handling in the thread that may be interrupted. Since the deadlock situation can no longer occur, we don't need to add any special logic to our main thread.
 
  There are two components of signal handling. The **top half** of signal handling occurs in the context of the interrupted thread (before the handler thread is created). This half must be fast, non-blocking, and include a minimal amount of processing. Once we have created our thread, this **bottom half** can contain arbitrary complexity, as we have now stepped out of the context of our main program into a separate thread.
