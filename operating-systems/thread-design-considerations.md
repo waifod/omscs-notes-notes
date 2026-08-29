@@ -111,7 +111,6 @@ However, the user library does not control stack growth. With this compact memor
 
 The solution is to separate information about each thread by a **red zone**. The red zone is a portion of the address space that is not allocated. If a thread tries to write to a red zone, the operating system causes a fault. Now it is much easier to reason about what happened as the error is associated with the problematic thread.
 
-
 ![](https://assets.omscs.io/notes/8D7A444B-90D8-451B-9DA4-8D2B8D1D1239.png)
 
 ## Kernel Level Structures in Solaris 2.0
@@ -159,7 +158,19 @@ Consider a process with four user threads. However, the process is such that at 
 
 If the operating system has a limit on the number of kernel threads that it can support, the application might have to request a fixed number of threads to support it. The application might select two kernel level threads, given its concurrency.
 
+<details>
+<summary>Number of threads quiz spoiler</summary>
+
+Linux also enforces a minimum. Some threads have to be available at startup just to get the operating system to boot. In the 3.17 source, the fork initialization code in `fork.c` ensures that at least 20 threads can be created for this purpose, and the variable that holds the limit is `max_threads`.
+</details>
+
 When the process starts, maybe the operating system only allocates one kernel level thread to it. The application may specify (through a `set_concurrency`  system call) that it would like two threads, and another thread will be allocated.
+
+<details>
+<summary>PThread concurrency quiz spoiler</summary>
+
+In pthreads the corresponding call is `pthread_setconcurrency`. The application can pass an exact value, like the two kernel level threads above, or it can pass 0, which asks the implementation to decide. The call is only a hint, and it is meaningful only on many:many implementations. Linux uses a 1:1 model, so there it has no effect.
+</details>
 
 Consider the scenario where the two user level threads that are scheduled on the kernel level threads happen to be the two that block.  The kernel level threads block as well. This means that the whole process is blocked, even though there are user level threads that can make progress. The user threads have no way to know that the kernel threads are about to block, and has no way to decide before this event occurs.
 
@@ -209,7 +220,6 @@ At some point, T2 releases the mutex, and T3 becomes runnable.  T1 needs to be p
 We cannot directly modify the registers of one CPU when executing as another CPU. We need to send a signal from the context of one thread on one CPU to the context of the other thread on the other CPU, to tell the other CPU to execute the library code locally, so that the proper scheduling decisions can be made.
 
 Once the signal occurs, the library code can block T1 and schedule T3, keeping with the thread priorities within the application.
-
 
 ## Synchronization Related Issues
 Scenario
@@ -299,6 +309,14 @@ Some asynchronous signals include:
 
 - SIGKILL (as the receiver)
 - SIGALARM (timeout from timer expiration)
+
+<details>
+<summary>Signals quiz spoiler</summary>
+
+The POSIX `signal.h` header tabulates the full set of signals, with each signal's default action and description. Matching a few events to names from that table: the terminal interrupt signal is SIGINT, high bandwidth data available on a socket is SIGURG, a background process attempting to write is SIGTTOU, and file size limit exceeded is SIGXFSZ.
+
+Two of those descriptions are POSIX's own wording, and both are looser than the behaviour. SIGURG is raised when out-of-band, or urgent, data arrives on a socket, which has nothing to do with bandwidth. SIGTTOU applies to a background process group writing to its controlling terminal, and only when the terminal's `TOSTOP` flag is set; a background process writing to a file or a pipe does not get it.
+</details>
 
 ## Why Disable Interrupts or Signals?
 Interrupts and signals are handled in the context of the thread being interrupted/signaled. This means that they are handled on the thread's stack, which can cause certain issues.
