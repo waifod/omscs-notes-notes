@@ -13,11 +13,15 @@ lecture: processes-and-process-management
 * [6. Mechanism: Limited Direct Execution](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf)
 
 ## What is a Process?
+A process is an instance of an executing program. The terms **task** and **job** are often used interchangeably with process.
+
 One of the roles of the operating system is to manage the hardware on behalf of **applications**. When an application is stored on disk, it is static. Once an application is launched, it is loaded into memory and starts executing; it becomes a **process**. A process is an active entity.
 
 If the same program is launched more than once, multiple processes will be created. They will have the same instructions, but very different state.
 
-A process represents the **active** state of an application. It may not be running at every given moment, but it is application that has been loaded and started.
+For example, one instance of a text editor might be displaying notes from a previous lecture that you're only reading. A second instance of the same editor is open for taking notes on the current lecture: barely any content yet, and some unsaved edits.
+
+A process represents the execution state of an **active** application. It may not be running at every given moment, but it is an application that has been loaded and started. It might be waiting on user input, or waiting for another process that currently holds the CPU.
 
 ## What Does a Process Look Like?
 A process encapsulates all of the state of a running application. This includes the code, the data, the heap, and the stack. Every element of the process state has to be uniquely identified by its address. An operating system abstraction used to encapsulate all of the process state is an **address space**.
@@ -27,11 +31,14 @@ The address space is defined by a range of addresses V_0 to V_max. Different typ
 Different types of process state in an address space:
 * The code
 * The data available when process is first initialized (static state)
-* Heap: Dynamically created state (what we create)
-	* Seems contiguous but there are holes filled with garbage (think of C struct not `memset`)
+* Heap: Dynamically created state (what we create) - memory the process allocates, intermediate results it stores, data it reads from files
+	* Drawn as a contiguous region starting after the data, but in reality it may have holes
+	* Those holes are regions that have no meaning for the process, and the process isn't permitted to access them - the OS tracks which addresses are valid
 * Stack: Dynamically created state that grows and shrinks as the program executes
 	* LIFO
 	* Stack frames added and removed as functions are called and return
+
+Say the process is executing and needs to call procedure `y`. The state it was in before the call has to survive, so it gets pushed onto the stack, and control jumps to `y`. When `y` returns, that state is popped back off and execution continues exactly as it was before the call.
 
 ![](https://assets.omscs.io/notes/9AA4A864-5E7F-40AB-9E02-A1EAB43D34E6.png)
 
@@ -40,25 +47,33 @@ Potential range of addresses in process address space go from V_0 to V_max. Thes
 
 Memory management hardware and components of the operating system maintain a mapping between virtual memory addresses and physical memory addresses. By using this mapping, we can *decouple* the layout of the data in the virtual address space from the layout of the data in physical memory.
 
-For example, data may live at `0x03c5` in the virtual address space and this may map to `0x0f0f` in physical memory.
+The virtual layout can be complicated, and it depends on the specifics of the application and on choices the compiler made about where to put things. None of that should constrain how physical memory gets managed.
+
+For example, data may live at `0x03c5` in the virtual address space and this may map to `0x0f0f` in physical memory. When the process asks for memory at some virtual address, the physical address the OS actually hands out may be completely unrelated.
 
 The operating system creates a mapping between the virtual address and the physical address so that processes can access their data without knowing its physical location. This mapping is called a **page table**.
 
 ![](https://assets.omscs.io/notes/2J14QLu.png)
 
 ## Address Space and Memory Management
-We may not have enough physical memory to store all a process's state even if we do need it. To deal with this overflow, the operating system decides dynamically which portion of the process's address space will live in physical memory and which portion will be swapped temporarily to disk.
+Not every process needs the entire range from V_0 to V_max; parts of the address space may simply be unallocated. Separately, we may not have enough physical memory to store all a process's state even if we do need it.
+
+With 32-bit virtual addresses, a single address space can span up to 4GB. If several such processes run at once, even a well-provisioned machine runs out of physical memory quickly.
+
+To deal with this overflow, the operating system decides dynamically which portion of the process's address space will live in physical memory and which portion will be swapped temporarily to disk. Swapped-out regions get brought back in when they're needed, which may in turn force some other region - belonging to this process or another one - out to disk to make room.
 
 Operating system must maintain a mapping from the virtual addresses to the physical addresses, and must also check the validity of memory accesses, to make sure that, say, process A isn't trying to write to memory mapped to by process B.
 
 ## Process Execution State
 For an operating system to manage processes, it must have some idea about what a process is "doing". If the operating system stops a process, for example, it must know exactly what it was doing when it was stopped, so it can resume its execution with the exact same state.
 
+Source code gets compiled into a binary, and that binary is a sequence of instructions. Those instructions are not necessarily executed in order: there are jumps, loops, and interrupts that redirect the flow.
+
 At any given time the CPU must know where within a program's code a process currently is. The CPU's knowledge of the current executing line within a program is the **program counter**.
 
-The program counter is maintained on a CPU's register while the program is executing. Other data related to a current process's state is also stored on CPU registers.
+The program counter is maintained on a CPU's register while the program is executing. Other data related to a current process's state is also stored on CPU registers. These registers hold values that are necessary during execution: addresses for data, or status information that affects the execution of the instruction sequence.
 
-Another piece of state that defines what a process is doing is the process's stack. The top of the stack is defined by the **stack pointer**.
+Another piece of state that defines what a process is doing is the process's stack. The top of the stack is defined by the **stack pointer**. The stack is LIFO: whatever item came onto the stack last is the first item we can retrieve from it.
 
 To maintain all of this useful information for every single process, the operating system maintains a **process control block** or PCB.
 
@@ -70,22 +85,29 @@ Process control block contains:
 * process number
 * program counter
 * CPU registers
-* memory limits
-* CPU scheduling info
+* memory limits, plus the virtual-to-physical memory mappings needed for address translation
+* CPU scheduling info - how long this process has already run on the CPU, how much time it should get in the future, its priority
+* list of open files
 * and more!
 
 The PCB is created when the process is initially created, and is also initialized at that time. For example, the program counter will be set to point at the very first instruction.
 
 Certain fields of the PCB may be changed when process state changes. For example, virtual/physical memory mappings may be updated when the process requests more memory.
 
-Some fields can change often, like the program counter. We don't want to waste time on every instruction changing the counter. The CPU maintains a register just for the program counter which it can update (efficiently?) on every new instruction.
+Some fields can change often, like the program counter. We don't want to waste time on every instruction changing the counter. The CPU maintains a dedicated register just for the program counter, and the CPU automatically updates that register on every new instruction.
 
 It is the job of the operating system to collect all of the data about a process - stored within CPU registers - and save it to the PCB when the process is no longer running.
 
-## How is PCB Used?
+## How is a PCB Used?
 PCBs are stored in memory on behalf of a process by the operating system until it comes time for the process to start/resume execution. At that point, the process's PCB is loaded from memory into CPU registers, at which point instruction execution can begin.
 
 If a process is interrupted by the operating system - perhaps to give another process some CPU time - the operating system must pull the PCB out of CPU registers and save it back into memory.
+
+Consider two processes P1 and P2, both already created with PCBs sitting in memory. P1 is running, which means the CPU registers currently hold P1's state. The OS decides to interrupt P1, so it saves those register values into P1's PCB. Then it restores P2's PCB into the CPU registers, and P2 runs.
+
+Suppose P2 needs more memory partway through and calls `malloc`. The OS allocates it, establishes new virtual-to-physical mappings for P2, and updates P2's PCB accordingly.
+
+When P2 is done executing, or when the OS decides to interrupt P2, the OS saves P2's state back into P2's PCB and restores P1's. The values being restored are the ones captured when P1 was interrupted, so **P1 resumes at the exact instruction where it left off.**
 
 Each time the operating system switches between processes, we call this a **context switch**.
 
@@ -100,7 +122,9 @@ This operation is **EXPENSIVE**.
 
 We incur *direct costs*, which are the number of CPU cycles required to load and store a new PCB to and from memory.
 
-We also incur *indirect costs*. When a process is running on the CPU a lot of its data is stored in the processor cache. Accessing data from cache is *very* fast (on the order of cycles) relative to accessing data from memory (on the order of hundreds of cycles). When the data we need is present in the cache, we say that the cache is *hot*. When a process gets swapped out, all of its data is cleared from the cache. The next time it is swapped in, the cache is *cold*. That is, the data is not in the cache and the CPU has to spend many more cycles fetching data from memory.
+We also incur *indirect costs*. When a process is running on the CPU a lot of its data is stored in the processor cache. Accessing data from cache is *very* fast (on the order of cycles) relative to accessing data from memory (on the order of hundreds of cycles). When the data we need is present in the cache, we say that the cache is *hot*. When we context switch to another process, some or even all of the data belonging to the old process is replaced to make room for the data the incoming process needs. The next time it is swapped in, the cache is *cold*. That is, the data is not in the cache and the CPU has to spend many more cycles fetching data from memory.
+
+In practice there isn't one cache but a *hierarchy* of them - L1, L2, on down to the last level cache. Each level is larger than the one before it and potentially slower, though all of them are far faster than going out to memory.
 
 Basically, we want to limit how often we context switch!
 
@@ -122,6 +146,8 @@ In operating systems, a process can create one or more *child processes*. The cr
 
 Once the operating system is done booting, it will create some *root* processes. The processes have privileged access.
 
+When a user logs in, a shell process is created. When the user types a command, a new process is spawned as a child of that shell.
+
 <details>
 <summary>Parent process quiz spoiler</summary>
 
@@ -138,40 +164,55 @@ With **fork**, the operating system will create a new PCB for the child, and the
 
 With **exec**, the operating system will take a PCB (created via fork), but will not leave the values to match those of the parents. Instead operating system loads a new program, and the child's PCB will now point to values that describe this new program. The program counter of the child will now point to the first instruction of the new program.
 
-For "creating" a new program, you have to call fork to get a new process, and then call exec to load that program's information into the child's PCB.
+For "creating" a new program, you have to call fork to get a new process, and then call exec to load that program's information into the child's PCB. Fork produces the process; exec replaces the image that fork created with the image of the new program.
 
-## Role of the CPU scheduler
+## Role of the CPU Scheduler
 For the CPU to start executing a process, the process must first be ready. At any given time, there may be many processes that are in the ready state, so the question becomes: how does the operating system decide which process to run next on the CPU?
 
 This is determined by an operating system component known as the **CPU scheduler**. The CPU scheduler manages how processes use the CPU resources. It determines which process will use the CPU next, and how long that process has to run.
 
-The operating system must be able to **preempt**; that is, interrupt the current process and save its context. The operating system must then run the scheduler to **schedule**, or select, the next process. Once the process is chosen, the operating system must **dispatch** the process and switch into its context.
+The operating system must be able to **preempt**; that is, interrupt the current process and save its context. This is **preemption**. The operating system must then run the scheduler to **schedule**, or select, the next process. Once the process is chosen, the operating system must **dispatch** the process and switch into its context.
 
 Since CPU resources are precious, the operating system needs to make sure that it spends the bulk of its time running processes, NOT making scheduling decisions.
+
+The scheduling *algorithms* need efficient designs and efficient implementations, and so do the *data structures* that hold the waiting processes and whatever information feeds the scheduling decision - priorities, execution history, and so on.
 
 ![](https://assets.omscs.io/notes/DAF29EA9-7360-4F5C-9765-8D39E7FFB6EF.png)
 
 ## Length of Process
 One issue to consider is how often we run the scheduler. Put another way, the operating system has to make smart decisions about how long a process can run.
 
-We can calculate a measure of CPU efficiency by looking at the amount of time spent executing a process divided by the total amount of computation time.
+We can calculate a measure of CPU efficiency by looking at the amount of time spent executing a process divided by the total duration of the interval, which includes the time spent scheduling.
+
+Call the time a process runs `T_p` and the time the scheduler takes `T_sched`. `T_p` is the time allocated to a process that has been scheduled to run, the time that process can consume on the CPU. This time is known as the **timeslice**.
+
+Over an interval containing two of each, useful work as a fraction of total time is:
+
+```
+2 * T_p / (2 * T_p + 2 * T_sched)
+```
 
 For example, if the number of blocks of time spent scheduling equals the number of blocks spent executing, and the length of an execution block is the same as the length of a scheduling block, then the CPU *efficiency* is only 50%!
 
-On the other hand, if the same number of blocks are spent scheduling as are spent executing, but the process runs for 10 times the length of the scheduling block, the efficiency increases to over 90%!
+On the other hand, if the same number of blocks are spent scheduling as are spent executing, but the process runs for 10 times the length of the scheduling block, the efficiency increases to roughly 91%.
 
 ![](https://assets.omscs.io/notes/F718D68A-984A-41AD-9EFD-09FDF30C2093.png)
-
-The amount of time that has been allocated to a process that is scheduled to run is known as a **timeslice**.
 
 When designing a scheduler, we have to make important design decisions:
 * What are appropriate timeslice values?
 * What criteria is used to decide which process is the next to run?
 
 ## What about I/O
-When a process makes an I/O request, the operating system will deliver that request, and move the process to the **I/O queue** for that particular I/O device. The process will remain in the queue until the request is responded to, after which the process will move back to a ready state (or might immediately be scheduled on the CPU).
+The hardware the OS manages includes I/O devices - keyboards, network cards, disks - not just CPU and memory.
 
-Processes can end up on the ready queue in a few ways.
+When a process makes an I/O request, the operating system will deliver that request, and move the process to the **I/O queue** for that particular I/O device. The process will remain in the queue until the device completes the operation and responds, after which the process will move back to a ready state. If nothing else is waiting ahead of it in the ready queue, it might be scheduled on the CPU immediately.
+
+Processes can end up on the ready queue in four ways:
+
+1. A process was waiting on an I/O event, and the event completed.
+2. A process was running on the CPU and its timeslice expired.
+3. A new process was created via `fork`.
+4. A process was waiting for an interrupt, and the interrupt occurred.
 
 ![](https://assets.omscs.io/notes/80BB70E4-B83B-42C4-9860-760D5AC3EA7C.png)
 
@@ -180,14 +221,18 @@ Can processes interact? YES! It is common today that an application consists of 
 
 Example: Web application! Web server running in one process, database running in another.
 
-These mechanisms that allow processes to talk to one another are known as **inter process communication (IPCs)**.
+These mechanisms that allow processes to talk to one another are known as **inter-process communication (IPC)**.
 
-These mechanisms help to transfer data/information between address spaces while maintaining protection and isolation. There are many different types of inter process communication, so these mechanisms need to be flexible and performant.
+The OS goes to considerable lengths to isolate processes from one another: separate address spaces, controlled CPU allocation, memory that one process cannot reach from another.
+
+These mechanisms help to transfer data/information between address spaces while maintaining protection and isolation. The interactions they need to support vary a lot: periodic data exchanges, a continuous stream flowing between processes, or several processes coordinating on one shared piece of information, so these mechanisms need to be flexible and performant.
 
 ### Message Passing IPC
 Operating system establishes a communication channel - like a shared buffer, for instance - and the processes use that to communicate. One process can write/send through the channel, while the other can read/recv from the channel.
 
-Benefits of this approach is that the operating system will manage this channel, and already has the system calls in place for write/send and read/recv.
+In *message passing*, the sending process explicitly puts the information it wants to send into a message, and sends that message to this dedicated communication channel.
+
+Benefits of this approach is that the operating system will manage this channel, and it provides the exact same APIs - the exact same system calls - to both sides for write/send and read/recv. Neither process has to implement the protocol itself.
 
 Downsides are overhead. Every single piece of information to be transmitted needs to be copied from address space of sending process into memory allocated to the kernel, and then finally into the address space of the receiving process.
 
@@ -196,8 +241,10 @@ Downsides are overhead. Every single piece of information to be transmitted need
 ### Shared Memory IPC
 The operating system establishes a shared memory channel, and then maps it into the address space of both processes. The processes are then allowed to directly read/write to this memory the same way they can read/write from any memory allocated to them in their address space.
 
-The operating system is completely out of the picture in this case, which is the main benefit! No overhead to incur.
+The operating system is out of the *fast path* in this case: it isn't involved in the individual exchanges, so the processes incur no OS overhead on each read and write. That is the main benefit!
 
-The disadvantage to this approach is that because the OS is out of the way, a lot of the APIs that were taken for granted in message passing IPC have to be reimplemented.
+The OS does still have to establish the mapping, and mapping memory between two address spaces is expensive, so shared memory only wins if that one-time setup cost is amortized across enough messages. For a small number of exchanges, message passing can be the better choice.
+
+The disadvantage to this approach is that because the OS is out of the way, a lot of the APIs that were taken for granted in message passing IPC have to be reimplemented. Without a fixed, well-defined API governing how the shared region gets used, the code also tends to be more error-prone.
 
 ![](https://assets.omscs.io/notes/4F0200FD-93B6-4D98-B703-9C4EC18A6B18.png)
