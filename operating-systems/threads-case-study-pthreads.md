@@ -7,6 +7,10 @@ lecture: threads-case-study-pthreads
 
 # Threads Case Study - PThreads
 
+**Reference paper**: [An Introduction to Programming with Threads](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-birrell-paper.pdf) - Andrew Birrell.
+
+**OSTEP chapter**: [27. Interlude: Thread API](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-api.pdf)
+
 ## PThread Creation
 To represent threads, pthreads supports a `pthread_t` data type. Variables of this type will be uniquely identified by an identifier and will describe a thread.
 
