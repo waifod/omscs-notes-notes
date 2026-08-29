@@ -7,6 +7,12 @@ lecture: thread-performance-considerations
 
 # Thread Performance Considerations
 
+**Reference paper**: [Flash: An Efficient and Portable Web Server](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-pai-paper.pdf) - Pai, Druschel and Zwaenepoel.
+
+**OSTEP chapters**:
+* [28. Locks](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf)
+* [29. Lock-based Concurrent Data Structures](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks-usage.pdf)
+
 ## Which Threading Model Is Better?
 Let's compare the following two models to see which one is better
 
