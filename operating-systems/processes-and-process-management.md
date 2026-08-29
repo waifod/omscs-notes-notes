@@ -159,7 +159,7 @@ Processes can end up on the ready queue in a few ways.
 
 ![](https://assets.omscs.io/notes/80BB70E4-B83B-42C4-9860-760D5AC3EA7C.png)
 
-## Inter Process Communication
+## Inter-Process Communication
 Can processes interact? YES! It is common today that an application consists of multiple processes, so it is important that one process can talk to another.
 
 Example: Web application! Web server running in one process, database running in another.
