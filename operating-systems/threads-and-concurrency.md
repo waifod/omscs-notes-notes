@@ -70,7 +70,7 @@ Threads share the same virtual to physical address mappings, since they share th
 
 To avoid such problems, we need a mechanism that allows threads to operate on data in an exclusive manner. We call this **mutual exclusion**. This is a mechanism by which only one thread at a time is granted access to some data. The remaining threads must wait their turn. We accomplish mutual exclusion through the use of a **mutex**.
 
-Also, it is useful to have a mechanism by which a thread can wait on another thread, and to be able to exactly specify what condition the thread is waiting on. For this inter thread communication, we may use a construct called a **condition variable**.
+Also, it is useful to have a mechanism by which a thread can wait on another thread, and to be able to exactly specify what condition the thread is waiting on. For this inter-thread communication, we may use a construct called a **condition variable**.
 
 Both *mutexes* and *condition variables* are examples of **synchronization mechanisms**.
 
