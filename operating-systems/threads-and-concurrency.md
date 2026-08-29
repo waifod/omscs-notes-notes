@@ -47,6 +47,12 @@ A multiprocess application requires a new address space for each process, while 
 
 As a result, a multithreaded application is more likely to fit in memory, and not require as many swaps from disk, which is another performance improvement.
 
+<details>
+<summary>Process vs. thread quiz spoiler</summary>
+
+Sharing the address space also helps the cache. Because threads share the virtual address space, the data one thread needs is often already in the cache, brought there by another thread, so threads typically result in hotter caches. Processes do not share an address space by default, so they only get this effect for memory they explicitly share.
+</details>
+
 Also, passing data between processes - inter process communication (IPC) - is more costly than inter thread communication, which consists primarily of reading/writing shared variables.
 
 ## Benefits of Multithreading: Single CPU
@@ -421,7 +427,6 @@ A key benefit of this approach is specialization and locality, which can lead to
 
 A downside of this approach is that it is difficult to keep the pipeline balanced over time. When the input rate changes, or the resources at a given stage are exhausted, rebalancing may be required.
 
-
 ### Layered Pattern
 A layered model of multithreading is one in which similar subtasks are grouped together into a "layer" and the threads that are assigned to a layer can perform any of the subtasks in that layer. The end-to-end task must pass through all the layers.
 
@@ -430,3 +435,18 @@ A benefit of this approach is that we can have specialization while being less f
 Downsides of this approach include that it may not be suitable for all applications and that synchronization may be more complex as each layer must know about the layers above and below it to both receive inputs and pass results.
 
 ![](https://assets.omscs.io/notes/2649776E-95FB-4692-8F9C-EC4574A421EA.png)
+
+<details>
+<summary>Multithreading patterns quiz spoiler</summary>
+
+Take six threads, a boss/workers solution where a worker takes 120ms to process a toy, and a pipeline solution whose six stages each take 20ms. Ignore any time spent waiting in the shared queues, and assume infinite processing resources like tools and work areas.
+
+Boss/workers dedicates one thread to the boss, leaving five workers, so five orders proceed at a time. Ten orders take two rounds of 120ms, or 240ms. Eleven orders need a third round for the one order left over, even though only one worker is busy in it, so they take 360ms.
+
+The pipeline takes 120ms for the first order to clear all six stages. Every order behind it is already in the last stage when its predecessor exits, so each one adds a single stage time of 20ms. Ten orders take 120 + 9 * 20, or 300ms. Eleven orders take 120 + 10 * 20, or 320ms.
+
+Boss/workers wins at ten orders and the pipeline wins at eleven. This is the same metric and the same thread count in both cases, so which pattern is better can depend on the input the application receives.
+
+This calculation is simplified. It ignores the overheads of synchronization and of passing data among threads through the shared memory queues, so deciding which pattern suits an application needs more experimental analysis than this.
+</details>
+
