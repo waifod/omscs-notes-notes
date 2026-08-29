@@ -104,6 +104,14 @@ We also incur *indirect costs*. When a process is running on the CPU a lot of it
 
 Basically, we want to limit how often we context switch!
 
+<details>
+<summary>Hot cache quiz spoiler</summary>
+
+A hot cache has nothing to do with the physical temperature of the cache. The term refers only to accesses resolving in cache hits, which is when the process performs at its best.
+
+Even so, a hot cache does not keep a process on the CPU. Sometimes we have to context switch away from one, because another process with higher priority needs to execute, or because a policy timeshares the CPU between two processes and this one's time has expired.
+</details>
+
 ## Process Life Cycle: States
 When a process is created, it is in the *new* state. This is when the OS performs admission control, and allocates/initializes the PCB for this process. At this point, the process moves to the *ready* state, where it is ready to start executing, but isn't currently executing. When the scheduler schedules the process and it moves on to the CPU it is in the *running* state. The process can be interrupted and a context switch can be performed. This moves the process back to the *ready* state. Alternatively, the running process may need to perform some I/O operation or wait on an event, at which point the process enters a *waiting* state. The process can then move back to *ready* when the I/O operation completes or the event occurs. Finally, a process can exit, with or without error, and at this point the process is *terminated*.
 
@@ -113,6 +121,14 @@ When a process is created, it is in the *new* state. This is when the OS perform
 In operating systems, a process can create one or more *child processes*. The creating process is the parent and the created process is the child. All of the processes that are currently loaded will exist in a tree-like hierarchy.
 
 Once the operating system is done booting, it will create some *root* processes. The processes have privileged access.
+
+<details>
+<summary>Parent process quiz spoiler</summary>
+
+On UNIX-based systems, `init` is the first process that starts after the system boots. Every other user level process can ultimately be traced back to it, which is why `init` is referred to as the parent of all processes.
+
+Android takes a different approach. Zygote is a daemon process whose purpose is launching app processes. It preloads the Android framework classes, and each new app process is created by forking Zygote, so the app inherits that preloaded framework and Zygote is the parent of all of the app processes.
+</details>
 
 Most operating systems support two mechanisms for process creation:
 * fork
