@@ -7,6 +7,8 @@ lecture: introduction-to-operating-systems
 
 # Introduction To Operating Systems
 
+**OSTEP chapter**: [2. Introduction to Operating Systems](https://pages.cs.wisc.edu/~remzi/OSTEP/intro.pdf)
+
 ## What is an operating system?
 Let's first look at the hardware of a computing system. This computing system consists of:
 
