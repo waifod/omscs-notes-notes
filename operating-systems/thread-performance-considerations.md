@@ -18,6 +18,8 @@ Let's compare the following two models to see which one is better
 
 ![](https://assets.omscs.io/notes/6599CE4C-F1E1-4AA1-A546-F2667436BE59.png)
 
+Both models have six workers and both process an order of 11 toys. In the boss/workers model, a worker takes 120ms to process one toy order. In the pipeline model, each of the six pipeline stages takes 20ms, so one order still takes 120ms to travel the whole pipeline.
+
 Regarding execution time, the boss/workers model took 360ms to complete 11 toy orders with 6 workers, while the pipeline model took 320ms with the same constraints.  From the perspective of total execution time, the pipeline model performs better than the boss/workers model.
 
 What about average time to complete an order?
@@ -37,14 +39,16 @@ For the pipeline model, the first order took 120ms to complete. The second order
 ```ruby
 total_orders = 11
 total_time = (1..total_orders).reduce(0) do |sum, order|
-	 sum += 120  + (20 * order)
+	 sum += 120  + (20 * (order - 1))
 end
 
 average_time_per_order =  total_time / total_orders
 # average_time_per_order == 220ms
 ```
 
-If execution time is important, pick the pipeline model. Rather, if we care about the average time to complete the order, the boss/workers model is better.  
+If execution time is important, pick the pipeline model. Rather, if we care about the average time to complete the order, the boss/workers model is better: 196ms against 220ms, for the same workload and the same number of workers.
+
+Change the number of workers or the number of orders and you may draw the opposite conclusion. The toy shop manager wants to complete as many orders as possible in a fixed amount of time, so he picks the pipeline model. The customers of the toy shop prefer the boss/workers model, because their individual orders come back sooner.
 
 It's usually not possible to decree that one model is better than the other. Performance of a model is relative to the metric being measured, and different metrics may be important in different contexts.
 
@@ -66,7 +70,7 @@ So far, we have discussed many useful metrics, such as:
 
 - execution time
 - throughput
-- request rate
+- response time
 - CPU utilization
 
 There are many more.
@@ -75,28 +79,30 @@ For example, in some systems we may not care so much when we get an answer, but 
 
 Throughput helps us evaluate the utility of a platform; that is, how many tasks will the platform complete in a given unit of time. This can be evaluated in the context of a single server or as complex a system as an entire datacenter.
 
-If I own the data center, throughput may not be the metric that I am exclusively interested in. I might also be interested in **platform efficiency**, which measures how well resources are utilized to in order to deliver a certain measure of throughput. This matters because I make money as a result of high throughput (completing work quickly), but I also spend money to maintain my platform. A higher measure of platform efficiency means I have to spend less on my platform.
+If I own the data center, throughput may not be the metric that I am exclusively interested in. I might also be interested in **platform efficiency**, which measures how well resources are utilized in order to deliver a certain measure of throughput. This matters because I make money as a result of high throughput (completing work quickly), but I also spend money to maintain my platform. A higher measure of platform efficiency means I have to spend less on my platform.
 
 If I really just care about money, I can look at **performance per dollar**. If I want to know if I should buy the next greatest hardware platform, I should examine whether that cost that I incur in doing so will be offset by a boost in performance per dollar.
 
-Many times, I am more concerned about energy requirements. I might look at **performance per watt** when making decisions about new pieces of hardware. If my energy costs are high, maybe the right purchase is a machine that is more energy efficient.
+Many times, I am more concerned about energy requirements. I might look at **performance per watt**, or **performance per joule** if I care about the energy consumed over an execution, when making decisions about new pieces of hardware. If my energy costs are high, maybe the right purchase is a machine that is more energy efficient.
 
 When looking to incorporate enterprise software into the system, another useful metric may be the **percentage of SLA violations**. It may not make sense to create a contract with a software company if the SLA violations on their products are very high.
 
 Some metrics are not super useful to maximize. For example, "smooth" video requires ~30fps. It doesn't make sense to maximize the fps, but rather the goal should be to stay above or around 30fps for some high percentage of the time. In this case **client-perceived performance** is the goal, not raw performance.
 
-You may be interested in just one metric before making decisions, or you may need to aggregate metrics or even derive new metrics in order to accurately understand the system that you are evaluating.
+You may be interested in just one metric before making decisions, or you may need to aggregate metrics or even derive new metrics in order to accurately understand the system that you are evaluating. An aggregate metric might average the execution time or the wait time over all tasks, and it might weight that average by the priorities of the tasks.
+
+The CPU is also not the only resource we care about. Metrics that capture average usage of memory, of the file system, or of the storage subsystem are useful too.
 
 In summary, a metric is some measurable quantity we can use to reason about the behavior of a system.
 
-Ideally, we will obtain these measurements running real software on real machines with real workloads. Often, this is not feasible for many different reasons. In these cases, we may have to settle on "toy" experiments that are *representative* of realistic situations that we may encounter.
+Ideally, we will obtain these measurements running real software on real machines with real workloads. Often, this is not feasible for many different reasons. In these cases, we may have to settle on "toy" experiments that are *representative* of realistic situations that we may encounter. The workloads should have similar access patterns to the real ones, and the machines should be of a similar type. We may also supplement the toy experiment with simulation, which lets us mimic a system larger than the one we can actually build.
 
 We refer to these experimental settings as a **testbed**. The testbed tells us where/how the experiments were carried out and what were the relevant metrics being gathered.
 
 ## Really … Are Threads Useful?
 There isn't really a straightforward answer to this question or the more general question of "Is X Useful?". The answer depends on which metrics we have gathered, as well as the workload on the system. For different combinations of these two variables, we may arrive at very different conclusions.
 
-For example, some graph traversal algorithms work best on sparse graphs, while others work best on dense graphs. Some filesystems are optimized for read access, while others might be optimized for a write-heavy system.
+For example, some shortest path algorithms work best on sparsely connected graphs, while others work best on densely connected graphs. Some filesystems are better for predominantly read accesses, while others are better for a mixed workload where files are both read and updated.
 
 The answer is: It depends! While, this answer is almost always correct, it is rarely accepted. What is more important perhaps, is to modify the question, extending it to include the context you wish to examine and the metrics you wish to obtain.
 
@@ -131,7 +137,7 @@ Instead of taking a multiprocess approach, we can opt for a multithreaded approa
 
 In this diagram, every thread is performing all of the steps. Of course, we could have a boss/workers setup where the boss runs the first step and the workers execute the remaining steps. We could also have a pipeline setup, in which multiple threads execute one step and one step only.
 
-The benefits of this approach are that we have a shared address space, shared state, and a cheap user level context switch. Memory requirements are lighter, since we have a lot of shared information across all threads in the process.
+The benefits of this approach are that we have a shared address space, shared state, and a cheap user level context switch. Since the state is shared, threads don't need to make system calls to coordinate with each other; processes do. Memory requirements are lighter, since we have a lot of shared information across all threads in the process.
 
 The downside of this approach is that it is not a simple implementation. Multithreaded programs require explicit application level synchronization code, which can add to the overall complexity of the application. In addition, a multithreaded approach depends on underlying operating system level support for threads, although this is less of an issue now than it was in the past.
 
@@ -144,9 +150,9 @@ Events (in the case of a web server application)  can correspond to:
 
 - receipt of request
 - completion of send
-- completion a disk read
+- completion of a disk read
 
-The event dispatcher has the ability to accept any of these types of notifications and based on the notification type invoke the right handler. Since we are talking about a single threaded process, invoking a handler is just calling a function, so we just jump our execution to that instruction within the process's address space.
+The event dispatcher has the ability to accept any of these types of notifications and based on the notification type invoke the right handler. The dispatcher operates like a state machine. Since we are talking about a single threaded process, invoking a handler is just calling a function, so we just jump our execution to that instruction within the process's address space.
 
 The handlers run to completion. If the handler needs to block (by making an I/O request for instance), the handler will initiate the blocking operation and immediately pass control back to the dispatch loop.
 
@@ -183,7 +189,9 @@ Both of these system calls have to scan through a potentially large list of file
 
 A more recent system call is `epoll`. This eliminates some of the problems that `select` and `poll` have, namely with scanning large lists of mostly useless file descriptors.
 
-The benefits of the event driven model mainly come from the design as a single address space with a single flow of control. As a result, the overheads are lower. There is a smaller memory footprint, and no need for context switching or synchronization.
+The benefits of the event driven model mainly come from the design as a single address space with a single flow of control. As a result, the overheads are lower. There is a smaller memory footprint, and no need for context switching or synchronization. The programming is simpler too, since we don't have to reason about synchronization primitives or shared access to variables.
+
+**NB**: Jumping among handlers for different connections hurts locality and pollutes the cache, but these effects are far smaller than the cost of a full context switch.
 
 ## Helper Threads And Processes
 When we talked about the many-to-one user level thread to kernel level thread model, we saw that a user level thread that blocks will block the entire process.  
@@ -213,6 +221,8 @@ If the kernel is not multithreaded - it wasn't back in the day - the helpers nee
 The key benefits of this model are that  it resolves some of the portability issues of the basic event-driven model. That is, it fakes asynchronous I/O operations instead of relying on native support for them.
 
 In addition, this model allows us to have a smaller footprint than a pure multiprocess or multithreaded model. Since a thread or a process in the pure multiprocess/threaded model needs to perform all of the steps for processing the request, the memory footprint will be higher than that of a helper that just needs to do a very isolated task.
+
+In AMPED we only need a helper for each concurrent blocking I/O operation. In the multiprocess or multithreaded models we need an entity for every concurrent request, whether or not that request ever blocks.
 
 One downside is that this model is only applicable to certain classes of applications. Another downside is that there are some complexities surrounding event routing on multi CPU systems.
 
@@ -263,13 +273,15 @@ The authors compared their implementation against
 - Zeus (SPED implementation with two processes)
 - Apache (multiprocess at the time)
 
+Zeus used the second process to deal with blocking I/O. Every one of these implementations except Apache included the optimizations that Flash introduced, so the comparison is really between the models - multiprocess, multithreaded, SPED - and AMPED, over otherwise identical code.
+
 ### What workloads will be used?
 
 They wanted workloads that represented a realistic sequence of requests, because that is what will capture a distribution of web page accesses, but they wanted to be able to reproduce the experiment with the same pattern of accesses. To accomplish this, they gathered traces from real web servers, and replayed those traces to their systems.
 
 They used two real-world traces. The first trace was the CS WebServer trace, which represents the Rice University web server for the computer science department, which includes a large number of files and doesn't really fit in memory. The second trace was the Owlnet trace, which was from a web server that hosted a number of student run websites and it was much smaller so it would typically fit in the memory of a common server.
 
-In addition to these real traces, they also used a synthetic workload generator. Since they couldn't replay synthetic workloads, they instead performed some best/worst analysis when looking at performance with these workloads.
+In addition to these real traces, they also used a synthetic workload generator. Instead of replaying a real distribution of page accesses, the generator let them run best case and worst case analysis, and ask "what if" questions about access patterns they had not observed.
 
 ### How will you measure performance?
 
@@ -277,7 +289,7 @@ A common metric to measure web servers - that was used in this paper - is **band
 
 Second, because the authors were concerned with Flash's ability to perform concurrent processing, they wanted to see the impact of **connection rate** as a metric. This is defined as the total number of client connections serviced divided by the total amount of time that passed.
 
-Both of these metrics were evaluated as a function of file size. The intuition is that with a larger file size, the connection cost can be ammortized, resulting in higher bandwidth. On the other hand, with a larger file size, there is more work to do per connection, so it's expected that there will be a lower connection rate.
+Both of these metrics were evaluated as a function of file size. The intuition is that with a larger file size, the connection cost can be amortized, resulting in higher bandwidth. On the other hand, with a larger file size, there is more work to do per connection, so it's expected that there will be a lower connection rate.
 
 ## Experimental Results
 Let's look at the experimental results.
@@ -291,7 +303,7 @@ For the best case experiment, they vary the file size from 0 to 200kb, and they 
 
 All of the implementations had similar results, with bandwidth increasing sharply with file size initially before plateauing.
 
-SPED has the best performance. Flash is similar in performance, but it performs the extra check for memory presence. Zeus has an anomaly, where it drops in performance after a threshold of around 125Kb. The performance of the multithreaded/multiprocess implementations are lower because of the extra synchronization requirements and the cost of context switching. Apache has the lowest performance because it has no optimizations.
+SPED has the best performance: it has no threads or processes to context switch among. Flash is similar in performance, but it performs the extra check for memory presence. Since every request is for the same single file, no helper is ever invoked here, and the check buys Flash nothing. Zeus has an anomaly, where it drops in performance after a threshold of around 125Kb. That drop comes from a misalignment in some of its DMA operations - not all of Zeus's optimizations are bug free. The performance of the multithreaded/multiprocess implementations are lower because of the extra synchronization requirements and the cost of context switching. Apache has the lowest performance because it has no optimizations.
 
 ### Owlnet Trace
 
@@ -299,21 +311,30 @@ SPED has the best performance. Flash is similar in performance, but it performs 
 
  For the Owlnet trace, the results are mostly similar to the best case. We can see that Flash and SPED are the best, followed by MT/MP and then Apache. The reason for this trend is because the owl trace is very small, so most of the requests can be serviced from the cache. However, not everything can be serviced from cache, so sometimes blocking I/O is required. In this case, SPED will block, but Flash will not because it has helpers. This helps explain why Flash's performance is slightly higher than the SPED implementation.
 
+**NB**: Zeus is not included in this graph.
+
 ### CS Trace
 
 ![](https://assets.omscs.io/notes/7FAD964F-52B7-4742-BA6D-07615FBCFE00.png)
 
-The CS trace is a much larger trace, which means that most requests are not serviced from the cache. Since the SPED implementation does not support asynchronous I/O the performance drops significantly. The multithreaded implementation does better than the multiprocess implementation because it has a smaller memory footprint (more memory available to cache files) and is able to synchronize more quickly/cheaply.
+The CS trace is a much larger trace, which means that most requests are not serviced from the cache. Since the system does not support asynchronous I/O the performance of SPED drops significantly. SPED goes from performing right next to Flash to performing *below* both the multiprocess and the multithreaded implementations. The multithreaded implementation does better than the multiprocess implementation because it has a smaller memory footprint (more memory available to cache files) and is able to synchronize more quickly/cheaply.
 
-Flash performs the best. It has the smallest memory footprint, which means it has the most memory available for caching files. As a result, fewer requests will require blocking I/O requests, which further speeds everything up. In addition, since everything occurs in the same address space, there is no need for explicit synchronization.
+Flash performs the best. It has a smaller memory footprint than the multithreaded and multiprocess implementations, which means it has more memory available for caching files and headers. As a result, fewer requests will require blocking I/O requests, which further speeds everything up. In addition, since everything occurs in the same address space, there is no need for explicit synchronization.
 
 ### Impact of Optimizations
 
 ![](https://assets.omscs.io/notes/2A9A866D-FC1C-49C3-B91B-54E20004E4AA.png)
 
- We can see that in all cases, connection rate decreases with file size. That being said, connection rate increases as the number of optimizations increase, with the fully optimized flash having the highest connection rate at a given file size. Optimizations are important!
+The four curves are Flash with no optimizations, Flash caching only the pathname lookup, Flash caching the pathname lookup and the file itself via `mmap`, and Flash with all optimizations, which adds the cached header computation.
+
+We can see that in all cases, connection rate decreases with file size. That being said, connection rate increases as the number of optimizations increase, with the fully optimized flash having the highest connection rate at a given file size. Optimizations are important!
+
+Apache performed worst in both trace experiments, and it is the one implementation that did not integrate these optimizations. It would have done better with them.
 
 ## Summary of Performance Results
+When the data is in cache, SPED smokes AMPED Flash, since AMPED Flash makes an "unnecessary" test for memory presence on each request. Both SPED and AMPED Flash perform better than MT/MP models, because neither incurs any synchronization or context switching overhead.
+
+When the workload is disk-bound, AMPED Flash performs much better than SPED, which blocks on I/O request because it doesn't have asynchronous I/O. AMPED Flash performs better than MT/MP because the more efficient memory implementation leaves more memory available for caching, and because it doesn't require the same amount of context switching. Only the concurrent I/O bound requests turn into extra processes or threads in AMPED.
 
 <details>
 <summary>Performance observation quiz spoiler</summary>
@@ -321,9 +342,7 @@ Flash performs the best. It has the smallest memory footprint, which means it ha
 The memory advantage does not explain why Flash beats SPED. SPED and AMPED Flash have comparable memory footprints, so neither one can hold appreciably more files in its cache than the other. If anything, the helper processes that Flash spawns take memory away from the rest of the process, leaving Flash with less memory available for caching files than SPED has.
 </details>
 
-When the data is in cache, SPED smokes AMPED Flash, since AMPED Flash makes an "unnecessary" test for memory presence on each request. Both SPED and AMPED Flash perform better than MT/MP models, because neither occurs any synchronization or context switching overhead.
-
-When the workload is disk-bound, AMPED Flash performs much better than SPED, which blocks on I/O request because it doesn't have asynchronous I/O. AMPED Flash performs better than MT/MP because the more efficient memory implementation leaves more memory available for caching.
+The event-driven model is not suitable for every kind of server process. We need to route events to the appropriate core on a multicore machine, and some kinds of processing just don't fit the architecture. Still, a lot of the high performance servers in use today are event-driven with asynchronous I/O support.
 
 ## Advice on Designing Experiments
 The clients using the web server care about the response time: how quickly they get a response. The operators of the web server care about throughput: how much information can they send as quickly as possible.
@@ -332,7 +351,7 @@ The efficacy of a solution will depend on whose problem you are trying to solve.
 
 For example, a solution may improve response time and throughput, or it may improve response time while keeping throughput constant, or it may improve response time while degrading throughput. Any of these solutions may be viable, depending on the context.
 
-By understanding the stakeholders and the goals that these stakeholders are trying to meet, we can gain some insight into both the metrics and the configuration our experiments.
+By understanding the stakeholders and the goals that these stakeholders are trying to meet, we can gain some insight into both the metrics and the configuration of our experiments.
 
 When picking metrics, a good rule of thumb is to start by looking at metrics that are standard for the target domain. For instance, for web servers it is common to talk about the client request rate or the server response time. This allows you to have a broader audience who can understand and interpret your results, and should be included even if they do not give the best punchline.
 
@@ -340,7 +359,7 @@ In addition, you need metrics that answer the who/what/why questions. Why are yo
 
 Once you understand the metrics you will be analyzing, it's important to understand system factors that affect those metrics.
 
-For example, system resources can greatly affect metrics. Systems with different CPUs and memory configurations, running different software will often have wildly different results.
+For example, system resources can greatly affect metrics. Systems with different CPUs and memory configurations, running different software will often have wildly different results. Software resources count here too: the number of threads, the size of the queues, the buffer structures inside the program.
 
 It's important to also consider the workload configuration. For a web server,  we can vary the request rate, the number of concurrent requests, the file size, the access pattern and many more.
 
@@ -354,17 +373,21 @@ Realism is not the only constraint on the values you vary. The values also need 
 It is also worth pushing the range past the point where the gains stop. If the toy shop tries twelve workers, four per working area, at some point it will likely stop seeing any improvement, simply because it cannot squeeze in more workers per working area. Where the curve flattens is likely to show the capacity of the individual working area.
 </details>
 
-It is possible to engineer configurations such that you can provide best/worst analysis about the system that you are analyzing. In this case, it may be okay to have configurations that, while not common, are still possible.
+It is possible to engineer configurations such that you can provide best/worst analysis about the system that you are analyzing. In this case, it may be okay to have configurations that, while not common, are still possible. The single-file experiment in the flash paper is one of these, and it was still informative.
+
+Pick useful combinations of the factors you vary. A few experiments confirming the same observation are good. Tens of them are pointless.
 
 Compare apples to apples! Put another way, only vary one parameter at a time! Don't vary the workload and the software; how will you be able to tell which factor influenced your results?
 
-What is the baseline performance of the system you are improving? You want to be able to show that your experiment somehow improves the state of the art or at least improves the most common configuration/workflow.
+What is the baseline performance of the system you are improving? You want to be able to show that your experiment somehow improves the state of the art or at least improves the most common configuration/workflow. Failing that, compare against extreme workloads or resource assignments; that at least tells you how your solution scales.
 
 ## Advice on Running Experiments
 Here is the easy part:
 
 - Run test cases N times
-- Compute metrics
+- Compute metrics, averaged over the N runs
 - Represent results
+
+A good visual representation of the results strengthens your argument.
 
 Make sure to not just show results. Draw a conclusion! Spell out what the results say about the hypothesis or the claim that you are presenting.
