@@ -314,6 +314,13 @@ Flash performs the best. It has the smallest memory footprint, which means it ha
  We can see that in all cases, connection rate decreases with file size. That being said, connection rate increases as the number of optimizations increase, with the fully optimized flash having the highest connection rate at a given file size. Optimizations are important!
 
 ## Summary of Performance Results
+
+<details>
+<summary>Performance observation quiz spoiler</summary>
+
+The memory advantage does not explain why Flash beats SPED. SPED and AMPED Flash have comparable memory footprints, so neither one can hold appreciably more files in its cache than the other. If anything, the helper processes that Flash spawns take memory away from the rest of the process, leaving Flash with less memory available for caching files than SPED has.
+</details>
+
 When the data is in cache, SPED smokes AMPED Flash, since AMPED Flash makes an "unnecessary" test for memory presence on each request. Both SPED and AMPED Flash perform better than MT/MP models, because neither occurs any synchronization or context switching overhead.
 
 When the workload is disk-bound, AMPED Flash performs much better than SPED, which blocks on I/O request because it doesn't have asynchronous I/O. AMPED Flash performs better than MT/MP because the more efficient memory implementation leaves more memory available for caching.
@@ -338,6 +345,14 @@ For example, system resources can greatly affect metrics. Systems with different
 It's important to also consider the workload configuration. For a web server,  we can vary the request rate, the number of concurrent requests, the file size, the access pattern and many more.
 
 Once you have more insight into the configuration space available to your experiment, you need to actually pick some subset of features. It may be the case that the best approach involves variable ranges for some of the configuration parameters. Try to make these ranges realistic. Don't use 1, 2 or 3 threads when real world setups use hundreds of threads.
+
+<details>
+<summary>Experimental design quiz spoiler</summary>
+
+Realism is not the only constraint on the values you vary. The values also need to divide evenly across whatever fixed resources they will be spread over, otherwise trials that look like a clean progression are not comparable. Consider a toy shop with three working areas that the workers share, where the manager wants to know how many workers to hire. Trials of 3, 4 and 5 workers give one worker per area, then one area with two workers and two areas with one, then two areas with two workers and one area with one. The amount of resource available per area is not equal across the trials, so the differences between them say nothing about the capacity of the system. Trials of 3, 6 and 9 workers add the same number of workers to every working area, and the resulting numbers do say something about how capacity responds to more workers.
+
+It is also worth pushing the range past the point where the gains stop. If the toy shop tries twelve workers, four per working area, at some point it will likely stop seeing any improvement, simply because it cannot squeeze in more workers per working area. Where the curve flattens is likely to show the capacity of the individual working area.
+</details>
 
 It is possible to engineer configurations such that you can provide best/worst analysis about the system that you are analyzing. In this case, it may be okay to have configurations that, while not common, are still possible.
 
