@@ -100,7 +100,7 @@ For example, some graph traversal algorithms work best on sparse graphs, while o
 
 The answer is: It depends! While, this answer is almost always correct, it is rarely accepted. What is more important perhaps, is to modify the question, extending it to include the context you wish to examine and the metrics you wish to obtain.
 
-## Multi Process Vs. Multi Threaded
+## Multi Process vs. Multi Threaded
 An application can be implemented in a multithreaded way, which we have talked about at length. An application can also be implemented in a multiprocess way. Both strategies can be used to provide concurrency.
 
 We will compare the multithreaded approach and the multiprocess approach in the context of a web server, which may like to utilize concurrency in order to more efficiently process client requests.
