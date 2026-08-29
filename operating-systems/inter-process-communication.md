@@ -7,6 +7,8 @@ lecture: inter-process-communication
 
 # Inter-Process Communication
 
+**OSTEP chapter**: [5. Interlude: Process API](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf). OSTEP's coverage here is limited to pipes; the System V shared memory and message queue material in this lecture is not in the book.
+
 ## Inter Process Communication
 **Inter process communication** (IPC) refers to a set of mechanisms that the operating system must support in order to permit multiple processes to interact amongst each other. This includes mechanisms related to synchronization, coordination, and communication.
 

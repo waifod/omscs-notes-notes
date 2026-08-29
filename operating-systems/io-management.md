@@ -7,6 +7,14 @@ lecture: io-management
 
 # IO Management
 
+**OSTEP chapters**:
+* [36. I/O Devices](https://pages.cs.wisc.edu/~remzi/OSTEP/file-devices.pdf)
+* [39. Interlude: Files and Directories](https://pages.cs.wisc.edu/~remzi/OSTEP/file-intro.pdf)
+* [40. File System Implementation](https://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf)
+* [42. Crash Consistency: FSCK and Journaling](https://pages.cs.wisc.edu/~remzi/OSTEP/file-journaling.pdf)
+
+This lecture spans two parts of OSTEP. Chapter 36 covers the device half, through synchronous and asynchronous access. Chapters 39 and 40 cover the file system half, from the virtual file system through ext2 and inodes, and chapter 42 is relevant only for the journaling paragraphs at the end. Chapters 37 and 41 are not covered: the lecture treats the disk as a block addressed device, and says explicitly that ext2 block groups bear no relation to disk geometry.
+
 ## I/O Devices
 The execution of applications doesn't rely on only the CPU and memory, but other hardware components as well. Some of these components are specifically tied to receiving inputs or directing outputs, and these are referred to as **I/O devices**.
 

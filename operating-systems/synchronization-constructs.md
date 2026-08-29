@@ -7,6 +7,13 @@ lecture: synchronization-constructs
 
 # Synchronization Constructs
 
+**Reference paper**: [The Performance of Spin Lock Alternatives for Shared-Memory Multiprocessors](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-anderson-paper.pdf) - Thomas Anderson.
+
+**OSTEP chapters**:
+* [28. Locks](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf)
+* [30. Condition Variables](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf)
+* [31. Semaphores](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf)
+
 ## Why Are We Still Talking About Synchronization?
 During our past discussion of synchronization constructs - like mutexes and condition variables - we mentioned a number of common pitfalls.
 

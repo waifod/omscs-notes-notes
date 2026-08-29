@@ -7,6 +7,12 @@ lecture: distributed-file-systems
 
 # Distributed File Systems
 
+**Reference paper**: [Caching in the Sprite Network File System](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-nelson-paper.pdf) - Nelson, Welch and Ousterhout.
+
+**OSTEP chapters**:
+* [49. Sun's Network File System (NFS)](https://pages.cs.wisc.edu/~remzi/OSTEP/dist-nfs.pdf)
+* [50. The Andrew File System (AFS)](https://pages.cs.wisc.edu/~remzi/OSTEP/dist-afs.pdf)
+
 ## Distributed File Systems
 Modern operating systems export a high-level filesystem interface to abstract all of the (potentially) different types of storage devices present on a machine and unify them under a common API.
 

@@ -7,6 +7,8 @@ lecture: distributed-shared-memory
 
 # Distributed Shared Memory
 
+**Reference paper**: [Distributed Shared Memory: Concepts and Systems](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-protic-paper.pdf) - Protic et al.
+
 ## Reviewing DFS
 Distributed file systems are an example of a distributed service in which the state - the files - are stored on some set of server nodes and are then accessed by some set of client nodes. The servers own and manage the state, and provide a service - the file access operations - which are requested by the clients and operate on the state.
 

@@ -7,6 +7,14 @@ lecture: scheduling
 
 # Scheduling
 
+**Reference paper**: [Chip Multithreading Systems Need a New Operating System Scheduler](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-fedorova-paper.pdf) - Fedorova et al.
+
+**OSTEP chapters**:
+* [7. Scheduling: Introduction](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched.pdf)
+* [8. Scheduling: The Multi-Level Feedback Queue](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-mlfq.pdf)
+* [9. Scheduling: Proportional Share](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-lottery.pdf)
+* [10. Multiprocessor Scheduling (Advanced)](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-multi.pdf)
+
 ## Scheduling Overview
 The CPU scheduler decides how and when the processes (and their threads) access the shared CPUs.  The scheduler concerns the scheduling of both user level tasks and kernel level tasks.
 

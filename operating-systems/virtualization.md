@@ -7,6 +7,13 @@ lecture: virtualization
 
 # Virtualization
 
+**Reference papers**:
+
+* [Formal Requirements for Virtualizable Third Generation Architectures](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-popek-goldberg-paper.pdf) - Popek and Goldberg.
+* [Virtual Machine Monitors: Current Technology and Future Trends](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-rosenblum-garfinkel-paper.pdf) - Rosenblum and Garfinkel.
+
+**OSTEP appendix**: [B. Virtual Machine Monitors](https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf)
+
 ## What is Virtualization?
 In order to concurrently run diverse workloads on the same physical hardware without requiring that a single operating system be used for all of the applications, it was necessary to come up with a model where multiple operating systems can concurrently be deployed on the same hardware platform.
 

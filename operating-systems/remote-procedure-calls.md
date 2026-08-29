@@ -7,6 +7,10 @@ lecture: remote-procedure-calls
 
 # Remote Procedure Calls
 
+**Reference paper**: [Implementing Remote Procedure Calls](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-birrell-nelson-paper.pdf) - Birrell and Nelson.
+
+**OSTEP chapter**: [48. Distributed Systems](https://pages.cs.wisc.edu/~remzi/OSTEP/dist-intro.pdf)
+
 ## Why RPC?
 Let's look at two applications. In the first application, the client gets a file from the server. In the second application, the client sends an image to the server for some processing/modification.
 

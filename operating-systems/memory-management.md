@@ -7,6 +7,21 @@ lecture: memory-management
 
 # Memory Management
 
+**OSTEP chapters**:
+* [13. The Abstraction: Address Spaces](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf)
+* [14. Interlude: Memory API](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-api.pdf)
+* [15. Mechanism: Address Translation](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-mechanism.pdf)
+* [16. Segmentation](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-segmentation.pdf)
+* [17. Free-Space Management](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
+* [18. Paging: Introduction](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf)
+* [19. Paging: Faster Translations (TLBs)](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf)
+* [20. Paging: Smaller Tables](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf)
+* [21. Beyond Physical Memory: Mechanisms](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf)
+* [22. Beyond Physical Memory: Policies](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf)
+* [23. Complete Virtual Memory Systems](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-complete.pdf)
+
+OSTEP treats memory virtualization in more depth than this lecture does, so these chapters go beyond what the course covers. The lecture only names the `malloc` and `free` interface that chapter 14 covers in full, and of chapter 23 only the section on demand zeroing and copy-on-write is relevant here; the rest of that chapter is two case studies the lecture does not cover. The lecture's material on checkpointing has no OSTEP counterpart.
+
 ## Memory Management: Goals
 Remember that one of the roles of the operating system is to manage the physical resources - in this case DRAM - on behalf of one or more executing processes.
 
