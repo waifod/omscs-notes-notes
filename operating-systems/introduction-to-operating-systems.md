@@ -31,8 +31,20 @@ In addition, a computing system can have higher level applications. These are th
 #### Operating systems hide hardware complexity.
 You don't want to have to worry about the nuts and bolts of interacting with storage devices when you are writing an application. The operating system provides a higher level abstraction, the *file*, with a number of operations - like *read* and *write* - which applications can interact with.
 
+<details>
+<summary>Abstraction or arbitration quiz spoiler</summary>
+
+Supporting different types of speakers is another abstraction the operating system provides. You can plug in one set of speakers and, if they don't work, exchange them for something else. In some cases drivers are required to make this work. The device driver knows the details of the particular hardware element, like that one set of speakers. That is what lets the operating system control the device without knowing those details itself.
+</details>
+
 #### Operating systems manage underlying hardware resources.
 Operating system allocates memory for applications, schedules them for execution on the CPU, controls access to various network devices and so on.
+
+<details>
+<summary>Operating system components quiz spoiler</summary>
+
+Cache memory is a tricky case. Both the operating system and the application software use the cache for performance, but the OS does not directly manage it: the hardware decides what to keep and what to evict. The OS does control whether a mapping is cacheable, and it issues explicit flush operations where correctness demands them, but there is no OS component whose job is managing the cache.
+</details>
 
 #### Provides isolation and protection.
 When applications are running concurrently, the operating system has to ensure that they can do what they need to without hurting one another. For example, memory allocated to each application must not be readable/writable from another application.
@@ -134,6 +146,14 @@ For example:
 * `open` (file)
 * `send` (socket)
 * `mmap` (memory)
+
+<details>
+<summary>System calls quiz spoiler</summary>
+
+Some other Linux system calls: `kill` sends a signal to a process, `setgid` sets the group identity of a process, `mount` mounts a file system, and `sysctl` reads or writes system parameters. On a 64 bit system the call is `setgid`; on 16 or 32 bit systems there are the variants `setgid16` and `setgid32`.
+
+Two of those have dated since the lecture. The `setgid` variants exist because the original call took a 16 bit group ID and Linux 2.4 added a 32 bit version, so the split is about the width of the group ID rather than the word size of the machine. `sysctl` was removed from Linux in 5.5, and system parameters are now read and written through the `/proc/sys` filesystem.
+</details>
 
 Operating systems also support **signals**, which is a way for the operating system to send notifications to the application.
 
