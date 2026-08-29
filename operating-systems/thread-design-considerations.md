@@ -7,6 +7,18 @@ lecture: thread-design-considerations
 
 # Thread Design Considerations
 
+**Reference papers**:
+
+* [Beyond Multiprocessing: Multithreading the SunOS Kernel](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-eykholt-paper.pdf) - Eykholt et al.
+* [Implementing Lightweight Threads](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-stein-shah-paper.pdf) - Stein and Shah.
+
+**OSTEP chapters**:
+* [28. Locks](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf)
+* [29. Lock-based Concurrent Data Structures](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks-usage.pdf)
+* [30. Condition Variables](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf)
+* [31. Semaphores](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf)
+* [32. Common Concurrency Problems](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-bugs.pdf)
+
 ## Kernel Vs. User Level Threads
 Threads can be supported at the user level, the kernel level, or both.
 
