@@ -98,6 +98,12 @@ We loop and create threads with `pthread_create` passing in `hello` as the start
 
 In this case, the call to `pthread_create` passes in a value for the final parameter (the argument to pass to the start routine). This value is the pointer to current value of `i` the loop counter. In `threadFunc`, the pointer is first cast to an integer pointer, before a local variable is assigned to the value the pointer points to. Finally, the value is printed out.
 
+<details>
+<summary>PThread creation quiz spoiler</summary>
+
+We do not have control over how these newly created threads will actually be scheduled. The order in which each thread reaches its `printf` may differ from the order in which the threads were created, so an output such as Thread Number 0, 2, 1, 3 is possible even though the loop created the threads with `i` running from 0 to 3. Sequential output is possible too.
+</details>
+
 ## PThread Creation Example 3
 This section explains how this is a valid input for the example above
 
