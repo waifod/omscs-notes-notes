@@ -24,7 +24,7 @@ The scheduler selects one of the tasks in the ready queue and then schedules it 
 
 Whenever the CPU becomes idle, we need to run the scheduler. For example, if a task makes an I/O request and is placed on the wait queue for that device, the scheduler has to select a new task from the ready queue to run on the CPU.
 
-A common way that schedulers share time within the system is by giving each task some amount of time on the CPU. This is known as a **timeslice**. When a timeslice expires, the scheduler must be run.
+A common way that schedulers share time within the system is by giving each task some amount of time on the CPU. This is known as a timeslice. When a timeslice expires, the scheduler must be run.
 
 Once the scheduler selects a task to be scheduled, that task is dispatched onto the CPU. The operating system context switches to the new task, enters user mode, sets the program counter, and execution begins.
 

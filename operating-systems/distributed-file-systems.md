@@ -63,7 +63,7 @@ This approach is beneficial because the server continues to have insight into wh
 
 The downside with this compromise is that the server becomes more complex. The server needs to perform additional tasks and maintain additional state to make sure it can provide consistency guarantees. This also means that the client has to understand file sharing semantics that are different from what they are used to in a normal filesystem.
 
-## Stateless vs Stateful File Server
+## Stateless vs. Stateful File Server
 A **stateless** server keeps no state.
 
 It has no notion of:
@@ -127,7 +127,7 @@ With immutable files, you never modify an old file, but rather create a new file
 
 With transactions, the filesystem exports some API to allow clients to group file updates into a single batch to be applied atomically.
 
-## File Vs Directory Service
+## File vs. Directory Service
 Filesystems have two different types of files: regular files and directories. These two types of files often have very different access patterns. As a result, it is not uncommon to adopt one type of semantics for files, and another for directories. For example, we may have session semantics for files, and UNIX semantics for directories.
 
 ## Replication and Partitioning
