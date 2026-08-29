@@ -7,6 +7,10 @@ lecture: threads-and-concurrency
 
 # Threads And Concurrency
 
+**Reference paper**: [An Introduction to Programming with Threads](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-birrell-paper.pdf) - Andrew Birrell.
+
+**OSTEP chapter**: [26. Concurrency: An Introduction](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf)
+
 ## Process vs. Thread
 A single-threaded process is represented by two components:
 * address space (virtual <-> physical memory mapping)
