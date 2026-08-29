@@ -38,14 +38,18 @@ At any given time when running a multithreaded process on a multiprocessor machi
 
 As a result, different threads can work in parallel on different components of the program's workload. For example, each thread may be processing a different component of the program's input. By spreading the work from one thread/one processor to multiple threads that can execute in parallel on multiple processors, we have been able to speed up the program's execution.
 
+Threads may also execute completely different portions of the program. We can dedicate threads to I/O work such as input processing or display rendering, or split threads across specific functions in the code.
+
 Another benefit that we can achieve through multithreading is specialization. If we designate certain threads to accomplish only certain tasks or certain types of tasks, we can take a specialized approach with how we choose to manage those threads. For instance, we can give higher priority to tasks that handle more important tasks or service higher paying customers.
 
 Performance of a thread depends on how much information can be stored in the processor cache (remember - cache lookups are super fast). By having threads that are more specialized - that work on small subtasks within the main application - we can potentially have each thread keep it's entire state within the processor cache (*hot cache*), further enhancing the speed at which the thread continuously performs it task.
 
-#### So why not just write a multiprocess application?
+### So why not just write a multiprocess application?
 A multiprocess application requires a new address space for each process, while a multithreaded application requires only one address space. Thus, the memory requirements for a multiprocess application are greater than those of a multithreaded application.
 
 As a result, a multithreaded application is more likely to fit in memory, and not require as many swaps from disk, which is another performance improvement.
+
+Also, passing data between processes - inter-process communication (IPC) - is more costly than inter-thread communication, which consists primarily of reading/writing shared variables.
 
 <details>
 <summary>Process vs. thread quiz spoiler</summary>
@@ -53,12 +57,10 @@ As a result, a multithreaded application is more likely to fit in memory, and no
 Sharing the address space also helps the cache. Because threads share the virtual address space, the data one thread needs is often already in the cache, brought there by another thread, so threads typically result in hotter caches. Processes do not share an address space by default, so they only get this effect for memory they explicitly share.
 </details>
 
-Also, passing data between processes - inter process communication (IPC) - is more costly than inter thread communication, which consists primarily of reading/writing shared variables.
-
 ## Benefits of Multithreading: Single CPU
 Generally, are threads useful when the number of threads exceeds the number of CPUs?
 
-Consider the situation where a single thread makes a disk request. The disk needs some amount of time to respond to the request, during which the thread cannot do anything useful. If the time that the thread spends waiting greatly exceeds the time it takes to context switch (twice), then it makes sense to switch over to a new thread.
+Consider the situation where a single thread makes a disk request. The disk needs some amount of time to respond to the request, during which the thread cannot do anything useful. If the time that the thread spends waiting greatly exceeds the time it takes to context switch (twice), then it makes sense to switch over to a new thread, hiding the latency of the I/O operation.
 
 Now, this is true for both processes and threads. One of the most time consuming parts of context switching for processes is setting up the virtual to physical mappings. Thankfully, when we are context switching with threads, we are using the same mappings because we are within the same process. This brings down the total time to context switch, which brings up the number of opportunities in which switching threads can be useful.
 
@@ -70,6 +72,8 @@ By multithreading the operating system kernel, we allow the operating system to 
 ![](https://assets.omscs.io/notes/96B2D50D-5518-486F-AFA3-9FC1CAFB5566.png)
 
 ## Basic Thread Mechanisms
+To support threads we need a data structure to represent them, mechanisms to create and manage them, and mechanisms that let them coordinate amongst each other.
+
 When processes run concurrently, they operate within their own address space. The operating system ensures that physical access from one address space never touch memory mapped to by another process's address space.
 
 Threads share the same virtual to physical address mappings, since they share the same address space. Naturally, this can introduce some problems. For example, one thread can try to read the data while another modifies it, which can lead to inconsistencies. This is an example of a **data race** problem.
@@ -97,15 +101,23 @@ After the fork completes, the process now has two threads both of which can exec
 
 When the forked thread completes, we need some mechanism by which it can return its result or communicate its status to the forking thread. On the other hand, we need to ensure that a forking thread does not exit before its forked thread completes work (as child threads exit when parent threads do).
 
+One programming practice is to store the result of the computation in a well-defined location in the address space that is accessible to all of the threads, together with some mechanism to notify the parent - or some other thread - that the result is now available.
+
 One mechanism that can handle this is the `join` mechanism. When the parent thread calls `join` with the thread id of the child it will be blocked until the child thread is finished processing. `join` returns the result of the child's computation. When `join` returns, the child thread exits the system and all resources associated with it are deallocated.
+
+Other than the parent being the one that joins the child, the parent and the child thread are completely equivalent. They can access and share all of the resources available to the process as a whole: the CPU, the memory, and any state within the process.
 
 ## Thread Creation Example
 ![](https://assets.omscs.io/notes/F3C7BFC2-F512-478D-A6BC-ECF6CDA6EEB5.png)
 
-**NB**: because we do not know which thread will run at which time in this example, we cannot be certain of the ordering of the elements in the list. Perhaps the child thread inserts its element before the parent thread, or perhaps the parent thread inserts first. This is a concrete example of the *data race* described above.
+**NB**: because we do not know which thread will run at which time in this example, we cannot be certain of the ordering of the elements in the list. Nothing guarantees that control switches to the child as soon as `fork` returns, so perhaps the child thread inserts its element before the parent thread, or perhaps the parent thread inserts first. This is a concrete example of the *data race* described above.
+
+If the child has already finished, the `join` in this example returns immediately. The child's result reaches the parent through the shared list either way, so the join isn't strictly necessary here. It matters when we need the child's return value, or need to guarantee the child has finished.
 
 ## Mutexes
 ![](https://assets.omscs.io/notes/E4DBE552-3589-4160-88E0-257EC1B5D20A.png)
+
+Each element of the list has a value and a pointer, `p_next`, to the next element. The head of the list is reached by reading the shared variable `list`, and insertion happens at the head.
 
 Many steps are required to add an element to the list. Think about two threads - A and B - trying to insert elements into the list. Here is a problematic scenario that can occur.
 
@@ -120,6 +132,8 @@ When Thread A sets the value of `list.p_next` to it's element `e`, Thread B's re
 
 Generally, when reading and writing to shared variables (in multiple steps, as is often the case), the opportunities for this type of data overwriting increase.
 
+That scenario is two threads sharing one CPU, where their operations end up randomly interleaved. There is a second way this goes wrong: two threads running on two different CPUs may try to update the pointer field of the first element at the same time, and we have no idea what the outcome of that will be.
+
 ## Mutual Exclusion
 To support mutual exclusion, operating systems support a construct called a **mutex**. A mutex is like a lock that should be used whenever you access data/state that is *shared* among threads. When a thread locks a mutex, it has exclusive access to the shared resource. Other threads attempting to lock the same mutex will not be successful. These threads will be **blocked** on the lock operation, meaning they will not be able to proceed until the mutex owner releases the mutex.
 
@@ -127,6 +141,8 @@ As a data structure, the mutex should have at least the following information:
 * lock status
 * owner
 * blocked threads
+
+**NB**: the list of blocked threads is not guaranteed to be ordered. When the mutex is freed, any one of the threads waiting on it may acquire it, and so may a brand new thread that has only just reached the lock statement. A thread that has been waiting longer gets no priority. If `T3` reaches its lock statement exactly as `T1` releases the lock, `T3` may be the first to acquire it, even though `T2` was already waiting.
 
 The portion of the code protected by the mutex is called the **critical section**. The critical section should contain any code that would necessitate restricting access to one thread at a time: commonly, providing read/write access to a shared variable.
 
@@ -143,12 +159,20 @@ The mutex can be unlocked in two ways, depending on the implementation:
 ## Mutex Example
 ![](https://assets.omscs.io/notes/596C65A0-DC4B-4E6C-8451-8BA0F2BF0544.png)
 
+This is the earlier `safe_insert` example, now protected by a mutex. Parent `T0` inserts 6, child `T1` inserts 4.
+
+Say `T0` creates `T1`, keeps executing, and reaches `safe_insert` first. It acquires the lock and inserts 6. When `T1` reaches `safe_insert` it tries to acquire the same lock, fails, and blocks. Once `T0` releases, `T1` acquires the lock and inserts 4 at the front. The list ends up as `4 -> 6`.
+
+The ordering of the two inserts is still not determined by the code; the mutex only guarantees they don't interleave.
+
 ## Producer and Consumer Example
 Mutual exclusion is a binary operation: either the lock is free and the resource can be accessed, or the lock is not free and the resource cannot be accessed.
 
 What if the processing you wish to perform needs to occur with mutual exclusion, but only under *certain conditions*?
 
 For example, what if we have a number of producer threads adding values to a list, and one consumer thread that needs to wait until, say, the list is full? We want to ensure that the consumer thread executes only when the condition is met.
+
+Each producer inserts an element whose value is its own thread identifier. The consumer prints the contents of the list and then clears it, which only makes sense once the list is full.
 
 ![](https://assets.omscs.io/notes/EDA4A436-CA50-4ED0-BAEF-635D8DF3CD2A.png)
 
@@ -204,9 +228,11 @@ Let's enumerate the conditions in which reading is allowed, writing is allowed, 
 
 If `read_counter == 0` and `write_counter == 0`, then both writing and reading is allowed. If `read_counter > 0`, then only reading is allowed. If `write_counter == 1`, neither reading nor writing is allowed.
 
-We can condense our two counters into one variable, `resource_counter`. If the `resource_counter` is zero, we will say that resource is free; that is, available for reads and writes. If the resource is being accessed for reading, the `resource_counter` will be greater than zero. We can encode the case where the resource is being accessed for writing by encoding `resource_counter` as a negative number.
+We can condense our two counters into one variable, `resource_counter`. If the `resource_counter` is zero, we will say that resource is free; that is, available for reads and writes. If the resource is being accessed for reading, the `resource_counter` will be greater than zero - and its value is exactly the number of current readers. We can encode the case where the resource is being accessed for writing by setting `resource_counter` to `-1`, which also captures the fact that there can only ever be one writer.
 
 Our `resource_counter` is a **proxy variable** that reflects the state that the current resource is in. Instead of controlling updates to the shared state, we can instead control access to this proxy variable. As long as any update to the shared state is first reflected in an update to the proxy variable, we can ensure that our state is accessed via the policies we wish to enforce.
+
+Every problem in computer science can be solved with one more level of indirection! A mutex on its own can only express mutual exclusion, but a mutex guarding a proxy variable can express whatever policy we can encode in that variable.
 
 ![](https://assets.omscs.io/notes/E04D6E34-CC4A-44ED-A448-11D9B3D023AB.png)
 
@@ -264,6 +290,8 @@ The "enter critical section" blocks can be seen as a higher level "lock" operati
 ## Critical Section Structure With Proxy
 ![](https://assets.omscs.io/notes/FC626433-043F-4F39-88FB-54F5F184C381.png)
 
+The mutex is held only *inside* the enter and exit blocks, so more than one thread can be in the real critical section at the same time. Note the asymmetry between the two: the enter block has a predicate to wait on, while the exit block generally has nothing to wait for and just updates the proxy variable and signals or broadcasts.
+
 Again, this structure allows us to implement more complex sharing scenarios than the simple mutual exclusion that mutexes allow.
 
 ## Common Pitfalls
@@ -303,25 +331,31 @@ Let's consider two threads, T1 and T2, that need to perform operations on some s
 
 Let's assume that T1 first locks the mutex for A  and then locks the mutex for B before performing the operation. Let's assume that T2 first locks the mutex for B and then locks the mutex for A, before performing the operation.
 
-This is where the problem lies. T2 will not be able to lock the mutex for A, because T1 is holding it. T1 will not be able to lock the mutex for B, because T1 is holding it. *More importantly*, neither T1 nor T2 will be able to release the mutex that the other needs, since they are both blocking trying to acquire the mutex the other has.
+This is where the problem lies. T2 will not be able to lock the mutex for A, because T1 is holding it. T1 will not be able to lock the mutex for B, because T2 is holding it. *More importantly*, neither T1 nor T2 will be able to release the mutex that the other needs, since they are both blocking trying to acquire the mutex the other has.
 
 How can we avoid these situations?
 
-One solution would be to unlock A before locking B. However, this solution will not work in this scenario since we need access to both A and B.
+One solution would be to unlock A before locking B, an approach known as **fine-grained locking**. However, this solution will not work in this scenario since we need access to both A and B.
 
-Another solution would be to get all locks up front, and then release all of them at the end. This solution may work for some applications, but may be too restrictive for others, because it limits the amount of parallelism that can exist in the system.
+Another solution would be to get all locks up front, and then release all of them at the end. Or we can just use a single **mega-lock** covering both A and B. This solution may work for some applications, but may be too restrictive for others, because it limits the amount of parallelism that can exist in the system.
 
 The last and most ideal solution is to maintain a **lock order**.  In this case, we would enforce that all threads must lock the mutex associated with A before locking the mutex associated with B, or vice versa. The particular order may not be important, but rather the enforcement of that ordering within the application is paramount.
 
+Suppose both threads must take A then B. If T1 is about to lock B, it must already hold A. If T1 holds A, then T2 cannot hold A. And if T2 doesn't hold A, it hasn't reached its first lock yet, so it cannot be holding B either. No cycle is possible, so T1 acquires B and proceeds.
+
+This technique is foolproof, but it takes effort. In a large program with many shared variables and many mutexes, we have to establish an order and then enforce it consistently everywhere. With complex code, especially code that comes from different sources, it is hard to guarantee that every mutex is acquired in exactly the same order across every source file. Deadlocks are a reality.
+
 A cycle in the wait graph is necessary and sufficient for a deadlock to occur, and the edges in this graph are from the thread waiting on a resource to the thread owning a resource.
 
-We can try to prevent deadlocks. Each time a thread is about to acquire a mutex, we can check to see if that operation will cause a deadlock. This can be expensive.
+We can try to prevent deadlocks. Each time a thread is about to acquire a mutex, we can check to see if that operation will cause a deadlock. If it will, we have to delay the operation, and we may even have to restructure the code so that the thread first releases some resource and only afterwards issues the lock request. This can be expensive.
 
-Alternatively, we can try to detect deadlocks and recover from them. We can accomplish this through analysis of the wait graph and trying to determine whether any cycles have occurred. This is still an expensive operation as it requires us to have a rollback strategy in the event that we need to recover.
+Alternatively, we can try to detect deadlocks and recover from them. We can accomplish this through analysis of the wait graph and trying to determine whether any cycles have occurred. This is still an expensive operation as it requires us to have a rollback strategy in the event that we need to recover, which means maintaining enough state during execution to figure out how to recover. In some cases rollback is not merely expensive but impossible: inputs and outputs that came from external sources cannot be rolled back.
 
 We can also apply the ostrich algorithm by doing nothing! We can hope that the system never deadlocks, and if we are wrong we can just reboot.
 
-## Kernel Vs. User-Level Threads
+All of these techniques impose enough overhead on the execution time of the system that they are typically applied only in really performance-critical systems.
+
+## Kernel vs. User Level Threads
 Kernel level threads imply that the operating system itself is multithreaded.  Kernel level threads are visible to the kernel and are managed by kernel level components like the kernel level scheduler.  The operating system scheduler will determine how these threads will be mapped onto the underlying physical CPU(s) and which ones will execute at any given point.
 
 Some kernel level threads may exist to support user level applications, while other kernel level threads may exist just to run operating system level services, like daemons for instance.
@@ -346,18 +380,20 @@ The benefit of this approach is that it is portable. Everything is done at the u
 However, the operating system loses its insight into application needs. It doesn't even know that the process is multithreaded. All it sees is one kernel level thread. If the user level library schedules a thread that performs some blocking operation, the OS will place the associated kernel level thread onto some request queue, which will end up blocking the entire process, even though more work can potentially be done.
 
 ### Many-to-Many Model
-This model allows for some user threads to have a one-to-many relationship with a kernel thread, while allowing other user threads to have a one-to-one relationship with a kernel thread.
+In this model, m user level threads are mapped onto n kernel level threads, with m usually larger than n. A user level thread runs on one kernel level thread at a time, but not necessarily the same one each time it is scheduled.
 
 The benefit is that we get the best of both worlds. The kernel is aware that the process is multithreaded since it has assigned multiple kernel level threads to the process. This means that if one kernel level thread blocks on an operation, we can context switch to another, and the process as a whole can proceed.
 
 We can have a situation where a user level thread can be scheduled on any allocated kernel level thread. This is known as an **unbound** thread. Alternatively, we can have the case where a user level thread will always be scheduled atop the same kernel level thread. This is known as a **bound** thread.
 
-One of the downsides of this model is that it requires extra coordination between the user- and kernel-level thread managers.
+Bound threads are useful when certain user level threads need better priority, or need to be more responsive to events happening in the kernel. Since the mapping is permanent, the kernel can schedule the corresponding kernel level thread immediately. For instance, if the kernel sees some user input and we have a user level thread designated to run the user interface for the process, the kernel can immediately schedule the kernel level thread it is bound to, and with it that user level thread.
+
+One of the downsides of this model is that it requires extra coordination between the user level and kernel level thread managers.
 
 ## Scope of Multithreading
 At the kernel level, there is system wide thread management, supported by the operating system level thread managers. These managers will look at the entire platform before making decisions on how to run their threads. This is the **system scope**.
 
-On the other hand, at the user level, the user level library manages all of the threads for the given process it is linked to. The user level library thread managers cannot see threads outside of their process, so we say that these managers have **process scope**.
+On the other hand, at the user level, the user level library manages all of the threads for the given process it is linked to. The user level library thread managers cannot see threads outside of their process, so we say that these managers have **process scope**. Different processes are managed by different instances of the same library, and some processes may link entirely different user level libraries.
 
 To understand the consequences of having different scope, let's consider the scenario where we have two processes, A and B. A has twice as many user level threads as B.
 
@@ -384,7 +420,9 @@ Another option is to establish a queue between the boss and the workers, similar
 
 The positive of this approach is that the boss doesn't need to know any of the details about the workers. It just places the work it accepts on the queue and moves on. Whenever a worker becomes free it just looks at the front of the queue and retrieves the next item.
 
-The downside of this approach is that further synchronization is required, both for the boss producing to the queue, and the workers competing amongst one another to consume from the queue. Despite this downside, this approach still results in decreased work for the boss for each task, which increases the throughput for the whole system.
+The downside of this approach is that further synchronization is required, both for the boss producing to the queue, and the workers competing amongst one another to consume from the queue. All the workers may contend for the front of the queue, and any given work item must go to exactly one worker. The boss and workers also need to synchronize when comparing the front and end pointers to determine whether the queue is full or empty.
+
+Despite this downside, this approach still results in decreased work for the boss for each task, which increases the throughput for the whole system. This is the variant usually chosen when building applications with this pattern.
 
 #### How many workers?
 If the work queue fills up, the boss cannot add items to the queue, and the amount of time that the boss has to spend per task increases. The likelihood of the queue filling up is dependent primarily on the number of workers.
@@ -402,7 +440,9 @@ The benefit of the boss/workers model is the overall simplicity. One thread assi
 One downside of this approach is the thread pool management overhead. Another downside is that this system lacks **locality**. The boss doesn't keep track of what any of the workers were doing last. It is possible that a thread is just finishing a task that is very similar to an incoming task, and therefore may be best suited to complete that task. The boss has no insight into this fact.
 
 #### Worker Variants
-An alternative to having all the workers in the system perform the same task is to have different workers specialized for different tasks. One added stipulation to this setup is that the boss has to do a little bit more work in determining which set of workers should handle a given task, but this extra work is usually offset by the fact that workers are now more efficient at completing their tasks.
+An alternative to having all the workers in the system perform the same task is to have different workers specialized for different tasks. We can split the work by type of item being produced, by new requests versus repairs or reprocessing, or by class of customer.
+
+One added stipulation to this setup is that the boss has to do a little bit more work in determining which set of workers should handle a given task. This extra work is usually offset by the fact that workers are now more efficient at completing their tasks.
 
 This approach exploits locality. By performing only a subset of the work, it is likely only a subset of the state will need to be accessed, and it is more likely this part of the state will already be present in CPU cache.
 
@@ -417,7 +457,11 @@ At any given point in time, we may have multiple tasks being worked on concurren
 
 The throughput of the pipeline will be dependent on the *weakest link* in the pipeline; that is, the task that takes the longest amount of time to complete. In this case, we can allocate more threads to that given step. For example, if a step takes three times as long as every other step, we can allocate three times the number of threads to that step.
 
+To decide how many threads each stage needs, we can use the same thread pool technique described for the boss/workers model.
+
 The best way to pass work between these stages is a shared buffer base communication between stages. That means the thread for stage one will put its completed work on a buffer that the thread from stage two will read from and so on.
+
+The alternative is direct communication, where a thread hands its output straight to the thread in the next stage. That couples the two: the earlier stage may have to wait until the next stage is free to receive. With a shared buffer, a thread deposits its output and moves on, and the next stage picks it up when ready. The buffer corrects for small imbalances between stages and avoids stalls due to temporary pipeline imbalances.
 
 ![](https://assets.omscs.io/notes/DEDC3AC5-1BDC-4288-8FB0-20AE35A510C6.png)
 
@@ -427,12 +471,18 @@ A key benefit of this approach is specialization and locality, which can lead to
 
 A downside of this approach is that it is difficult to keep the pipeline balanced over time. When the input rate changes, or the resources at a given stage are exhausted, rebalancing may be required.
 
+The other downside is synchronization overhead. There are synchronization points at multiple stages along the end-to-end path, so the total overhead is higher.
+
 ### Layered Pattern
 A layered model of multithreading is one in which similar subtasks are grouped together into a "layer" and the threads that are assigned to a layer can perform any of the subtasks in that layer. The end-to-end task must pass through all the layers.
 
-A benefit of this approach is that we can have specialization while being less fine-grained than the pipeline pattern.
+Unlike the pipeline, a task travels **up and down** through the layers, not in one direction. Related steps get grouped together even when they sit at opposite ends of the end-to-end flow, so control has to move both ways across the stack.
+
+A benefit of this approach is that we can have specialization while being less fine-grained than the pipeline pattern. Being coarser also makes the thread allocation question easier - deciding how many threads per layer is a simpler problem than deciding how many per pipeline stage.
 
 Downsides of this approach include that it may not be suitable for all applications and that synchronization may be more complex as each layer must know about the layers above and below it to both receive inputs and pass results.
+
+Grouping only pays off if the steps in a layer genuinely share state. If they have little in common, assigning them to the same thread gives us no locality, and the specialization benefit disappears.
 
 ![](https://assets.omscs.io/notes/2649776E-95FB-4692-8F9C-EC4574A421EA.png)
 
@@ -449,4 +499,3 @@ Boss/workers wins at ten orders and the pipeline wins at eleven. This is the sam
 
 This calculation is simplified. It ignores the overheads of synchronization and of passing data among threads through the shared memory queues, so deciding which pattern suits an application needs more experimental analysis than this.
 </details>
-
