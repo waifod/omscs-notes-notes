@@ -7,6 +7,11 @@ lecture: processes-and-process-management
 
 # Processes and Process Management
 
+**OSTEP chapters**:
+* [4. The Abstraction: The Process](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-intro.pdf)
+* [5. Interlude: Process API](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf)
+* [6. Mechanism: Limited Direct Execution](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf)
+
 ## What is a Process?
 One of the roles of the operating system is to manage the hardware on behalf of **applications**. When an application is stored on disk, it is static. Once an application is launched, it is loaded into memory and starts executing; it becomes a **process**. A process is an active entity.
 
