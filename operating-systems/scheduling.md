@@ -152,6 +152,8 @@ Let's consider two CPU bound tasks that each take 10 seconds to complete. Let's 
 
 ![](https://assets.omscs.io/notes/7E4262FA-1297-474A-A624-4BBD1B57DA5B.png)
 
+**NB**: the average wait time for the 5 second timeslice is wrong in the lecture graphic, which has a division error. `T1` starts at 0 seconds and `T2` starts at 5.1 seconds, so the average wait is 2.55 seconds and not 3.05 seconds. The course errata lists this correction.
+
 With a smaller timeslice value, we have to pay the time cost of context switching more frequently. This will degrade our throughput and our average completion time. That being said, smaller timeslices mean that tasks are started sooner, so our average wait time is better when we have smaller timeslices.
 
 The user cannot really perceive when a CPU bound task starts, so average wait time is not super important for CPU bound tasks. The user cares when a CPU bound task completes.
