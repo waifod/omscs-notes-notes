@@ -7,8 +7,15 @@ lecture: virtualization
 
 # Virtualization
 
+**Reference papers**:
+
+* [Formal Requirements for Virtualizable Third Generation Architectures](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-popek-goldberg-paper.pdf) - Popek and Goldberg.
+* [Virtual Machine Monitors: Current Technology and Future Trends](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-rosenblum-garfinkel-paper.pdf) - Rosenblum and Garfinkel.
+
+**OSTEP appendix**: [B. Virtual Machine Monitors](https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf)
+
 ## What is Virtualization?
-In order to concurrently run diverse workloads on the same physical hardware without requiring that a single operating system be used for all of the applications, it was necessary to come up with a model where multiple operating systems can concurrently be deployed on the same hardware platform.
+Virtualization is an old idea. It originated in the 1960s at IBM, when computing meant a few large mainframes shared by many users and business services. In order to concurrently run diverse workloads on the same physical hardware without requiring that a single operating system be used for all of the applications, it was necessary to come up with a model where multiple operating systems can concurrently be deployed on the same hardware platform.
 
 The solution is **virtualization**.
 
@@ -34,6 +41,8 @@ Second, programs that run in VMs must show at worst only minor decreases in spee
 
 Finally, the VMM is in complete control of the system resources. The VMM controls who access which resources and when, and it can be relied upon to provide **safety and isolation** among the VMs.
 
+> **Paper (Popek & Goldberg):** This definition is lifted from the 1974 paper, which names the three VMM properties more formally than the lecture's "fidelity, performance, safety". The paper calls them *equivalence* (any program runs with an effect identical to running on the bare machine, except for timing and resource-availability differences), *efficiency* (a statistically dominant subset of instructions executes directly on the real processor with no VMM intervention), and *resource control* (a program cannot access resources not allocated to it, and the VMM can reclaim resources already allocated). The efficiency property is what formally excludes pure emulators and software interpreters from being VMMs, and the equivalence property is what distinguishes a VMM from an ordinary time-sharing OS and from plain virtual memory.
+
 ## Benefits of Virtualization
 Virtualization enables **consolidation**. Consolidation refers to the ability to run multiple VMs on a single physical platform. Consolidation leads to fewer machines, with less space, with fewer admins, with potentially smaller electric bills that are still able to run the same degree/type of workload.
 
@@ -48,6 +57,10 @@ Because the OS and the applications are nicely encapsulated in a VM, it becomes 
 Virtualization has also provided fertile ground for operating systems research. Research can quickly boot up and test OSes in development without having to restart hardware.
 
 Virtualization also provides affordable support for legacy operating systems. Applications that need to run on older OSes no longer need a physical box dedicated just to them. They can run as one VM of many, sharing the physical resource with other applications.
+
+Virtualization is an old idea, so it is worth asking why it was not used ubiquitously from the start, and why it returned. It lapsed because mainframes were not ubiquitous and other hardware was cheap: most companies ran commodity x86 servers, and it was simpler to buy another machine than to make several operating systems coexist on one. That model held for decades, until data centers grew too large, servers sat underutilized (average utilization around 10 to 20 percent), admin headcount rose, and power and cooling bills climbed, to the point that companies were spending on the order of 70 percent of their IT budget on operating expenses rather than on new hardware or software. Consolidating workloads onto fewer, better-managed machines through virtualization became the way to bring those operating costs down.
+
+> **Paper (Rosenblum & Garfinkel):** The paper tells the same arc and sharpens the point: the very combination that killed VMMs in the 1980s, cheap hardware plus capable multitasking operating systems, is what later caused the problems VMMs solve. Cheap hardware proliferated underused machines; more capable operating systems grew fragile and vulnerable, which pushed admins back to one-application-per-machine and so back to a hardware-sprawl problem. The authors argue that going forward a VMM is "less a vehicle for multitasking ... and more a solution for security and reliability", and that functions like migration and security are better implemented at the VMM layer than inside today's "complex and ossified" operating systems. They also note benefits the lecture does not: a general-purpose undo through checkpoint and rollback, VMM-level security services (intrusion detection as in Livewire, after-the-fact break-in analysis as in ReVirt), high-assurance isolation (the NSA NetTop architecture), trusted computing with remote attestation (Terra), and distributing whole preconfigured software stacks as virtual appliances.
 
 ## Virtualization Models: Bare Metal
 In **bare-metal** virtualization (also known as **hypervisor-based** or **type 1** virtualization, the VMM manages all the hardware resources and support execution of VMs.
@@ -89,7 +102,11 @@ QEMU is used in as a virtual interface between the VM and the physical hardware,
 
 KVM has been able to leverage all of the advances that have been contributed to the Linux open source community. Because of this KVM can quickly adapt to new features and fixes.
 
+> **Paper (Rosenblum & Garfinkel):** The paper's canonical hosted example is VMware Workstation rather than KVM, and it is where the "hosted architecture" term comes from (Figure 2). The virtualization layer reuses the host OS's device drivers, so when a guest reads or writes its virtual disk the layer turns that into a system call that reads or writes a file in the host's file system, and it renders the guest's display into a window on the host. The paper lists three advantages: the VMM installs like an ordinary application rather than on bare hardware, it inherits the host's rich driver support for the diverse x86 device market, and it reuses the host's scheduling and resource management. Its stated disadvantage is high I/O overhead, because every I/O request must cross into the host and traverse its software layers; that cost, plus the lack of host-provided performance isolation, is why VMware's server product (ESX Server) dropped the host OS and runs directly on the hardware instead.
+
 ## Hardware Protection Levels
+A virtualization solution has four requirements that follow from the definition above: it must present a virtual platform interface over the CPU, memory, and devices to each guest VM; it must isolate the guest VMs from one another; it must preserve the usual protection of the guest OS from faulty or malicious applications inside the same VM; and it must protect the VMM from the guest operating systems. The last two together mean the guest OS and the VMM cannot run at the same protection level, so a single faulty guest cannot take down the hypervisor and the whole machine. Isolation across VMs can reuse the same mechanisms an OS already uses, such as preemption and the memory management unit.
+
 Commodity hardware has more than two protection levels. For example, x86 architecture has four protection levels, called **rings**.
 
 Ring 0 has the highest privilege and can access all resources and execute all hardware-supported instructions. In a native model, the operating system resides at ring 0.
@@ -113,10 +130,18 @@ Whenever a privileged instruction is issued, the processor causes a trap to the 
 
 The hypervisor intervention must be invisible to the guest OS.
 
+> **Paper (Popek & Goldberg):** Trap-and-emulate is exactly the VMM construction the paper proves correct. In the paper's model a VMM is a control program with three parts: a *dispatcher* placed at the hardware trap entry point, an *allocator* that decides which resources a VM gets (and is invoked whenever a trapped instruction would change a VM's resources), and a set of *interpreter* routines, one per privileged instruction, that simulate the trapped instruction's effect. The whole scheme works only if every instruction that could affect resource control actually traps, which is the content of the theorem below.
+
+> **Paper (Popek & Goldberg):** The paper classifies instructions precisely. A *privileged* instruction is one that traps when executed in user mode but not in supervisor mode. A *sensitive* instruction is one that is either *control sensitive* (it changes the resources available, such as memory, or changes the processor mode without going through the memory-trap sequence) or *behavior sensitive* (its result depends on the configuration of resources, that is, on its location in real memory, called location sensitivity, or on the processor mode, called mode sensitivity). Any instruction that is not sensitive is *innocuous*. Theorem 1 then states that for a conventional third-generation machine, a VMM can be constructed **if the set of sensitive instructions is a subset of the set of privileged instructions**, because that condition guarantees every instruction the VMM must mediate will trap. This is the formal statement the lecture compresses into "privileged instructions trap".
+
 ## x86 Virtualization in the Past
 Before 2005, x86 platforms had only the four privilege rings, without the root/non-root distinction. The basic strategy for virtualization software was to run the hypervisor in ring 0, and the guest operating system in ring 1.
 
 However, there were exactly 17 hardware instructions that were privileged (required ring 0), but didn't cause a trap. Issuing them from another protection level wouldn't pass control to the hypervisor, but would just fail silently.
+
+> **Paper (Popek & Goldberg):** The lecture's phrasing, "privileged instructions that do not trap", is loose against the paper's own vocabulary, where a privileged instruction is *defined* to trap in user mode. The precise statement is that these 17 are *sensitive but not privileged*: they read or change privileged machine state (so they are sensitive) yet do not trap when issued outside ring 0 (so they are not privileged). They are exactly the instructions that violate Theorem 1's subset condition, which is why pre-2005 x86 could not be virtualized by trap-and-emulate alone. The count of 17 is not from this paper; it comes from Robin and Irvine's USENIX Security 2000 analysis of the roughly 250 Pentium instructions.
+
+> **Paper (Rosenblum & Garfinkel):** This paper gives the two concrete x86 examples behind the problem. First, `POPF` (pop flags) is used to set and clear the interrupt-disable flag, but in unprivileged mode it does not trap; it silently ignores the change to the interrupt flag, so direct execution breaks for kernel code that uses it. Second, unprivileged x86 instructions let software read privileged state: a guest can read the code-segment register to see the processor's current privilege level, and because the read does not trap, the VMM cannot patch what the guest sees, so the guest observes the wrong (physical) privilege level rather than its virtual one.
 
 For example, enabling/disabling interrupts requires manipulating a bit in a privileged register, which can be done with the POPF/PUSHF instructions. When these instructions were issued, they just failed silently.
 
@@ -139,7 +164,9 @@ However, if one of the bad instructions is found, that instruction is translated
 
 Binary translation adds overheads! Mechanisms to reduce these overheads include caching translated code fragments and making sure to only analyze kernel code executed in the guest OS.
 
-This approach was taken by VMware.
+This approach was taken by VMware. The technique was pioneered by the Stanford research group led by Mendel Rosenblum, who went on to co-found VMware and is a co-author of the Rosenblum and Garfinkel paper for this lesson.
+
+> **Paper (Rosenblum & Garfinkel):** The paper describes VMware's binary translation in more detail. It runs only the privileged (kernel) code under the translator, translating each block into a similar block with the problematic instructions replaced, and caches the result in a *trace cache* so a block is translated only on its first execution. The translated output "looks much like the results from the paravirtualized approach", normal instructions unchanged and problematic ones such as `POPF` and code-segment reads replaced, with one difference: the changes are applied when the code first executes rather than to the OS source. The paper also notes VMware's translation is simpler than cross-ISA binary translators because source and target instruction sets are nearly identical, and that binary translation is not only a correctness fix but a *performance* optimization, since it can remove frequently-trapping privileged instructions and so cut the trap overhead that is especially high on the deep pipelines of modern x86 CPUs. Once the trace cache is warm, performance is nearly indistinguishable from direct execution.
 
 ## Paravirtualization
 Another approach gives up on unmodified guests, instead focusing on performance. In contrast to full virtualization, this is called **paravirtualization**.
@@ -149,6 +176,8 @@ In paravirtualization, the guest now knows that it is running in virtualized env
 A paravirtualized guest OS may not directly try to perform operations that it knows will fail, but will instead make explicit calls to the hypervisor to achieve the desired behavior. These calls are called **hypercalls** and they behave similar to system calls.  The hypercall will trap to the hypervisor which, upon performing the required operation with the data supplied by the guest, will pass control back to the guest.
 
 This approach was taken by Xen.
+
+> **Paper (Rosenblum & Garfinkel):** The paper's canonical paravirtualization example is Disco, a VMM for the non-virtualizable MIPS architecture, rather than Xen (Xen is not discussed in the paper). Disco's designers replaced the MIPS equivalent of `POPF` and the code-segment read with accesses to a special memory location, which also removed traps on those privileged instructions and so improved performance. The paper frames paravirtualization generally as the VMM builder *replacing* the non-virtualizable parts of the instruction set with easily virtualized equivalents, so most ordinary applications still run unmodified while the OS must be ported. Its stated main drawback is incompatibility: a ported OS, vendor cooperation, no legacy operating systems, and no easy migration of existing machines, which is why the paper says academic projects favored paravirtualization while a fully compatible commodity product (VMware) needed binary translation instead.
 
 ## Memory Virtualization: Full Virtualization
 For full virtualization, a key requirement is that the guest OS continues to observe a contiguous, linear address space that starts from address zero. This is what an operating system would see if it actually owned the physical memory.
@@ -173,6 +202,8 @@ The hypervisor will clearly have to maintain consistency between these two pages
 
 It will also have to make sure to write protect the page table in order to keep track of new mappings. The write protection is necessary to ensure that whenever the guest tries to establish new address mappings, it will trap into the hypervisor. During the trap, the hypervisor can update its shadow page table.
 
+> **Paper (Rosenblum & Garfinkel):** The paper calls this the traditional technique and is the source of the term *shadow page table*. It adds two points the lecture leaves out. First, because the VMM controls the shadow page table it can page a VM out to disk and so overcommit machine memory, letting the total memory allocated to VMs exceed physical memory; the catch is that the VMM lacks the guest's knowledge of which pages are good eviction candidates, which VMware's ESX Server addresses with a *balloon* driver running inside the guest. When the VMM wants memory back it inflates the balloon, and the guest, using its own page-replacement knowledge, picks the pages to surrender. Second, running many similar VMs wastes memory on identical pages, which ESX Server reclaims with *content-based page sharing*: the VMM detects identical physical pages, points the shadow page tables at a single copy, and copies on write if the contents later diverge (for example, 30 Windows VMs needing only one copy of the kernel in memory). The paper flags hardware-managed shadow page tables as a promising future direction, which is the extended page table support described later in this note.
+
 ## Memory Virtualization: Paravirtualization
 Since an OS knows that it is in a virtualized environment in paravirtualization, it is no longer a strict requirement that the guest OS uses contiguous physical memory starting at 0.
 
@@ -194,6 +225,8 @@ This is the case for a specific ISA like x86.
 When we look at devices, there is a much greater diversity in the type of devices. Also, there is a lack of standardization when it comes to the specifics of the device interface and the semantics of that interface.
 
 To deal with this diversity, virtualization solutions adapt one of three key models to virtualize devices.
+
+> **Paper (Rosenblum & Garfinkel):** The paper frames I/O virtualization historically and names the trend. Thirty years ago IBM mainframes used a *channel*-based I/O architecture, where a separate channel processor let the VMM export device access directly to the VM with very low overhead. The x86 world lost this: its huge, diverse device collection makes writing a VMM I/O layer a large effort, and some devices (graphics, high-speed network) have severe performance requirements. The paper's three concrete approaches map onto this note's three models: the hosted architecture routes I/O through the host OS's drivers (highest overhead, used by VMware Workstation); ESX Server runs a traditional VMM that borrows Linux drivers directly (lower overhead, feasible because few server I/O devices need certifying); and VMware also exports *optimized paravirtualized virtual devices* that do not match any real device and need a special guest driver, which is the split-device-driver idea. Looking forward, the paper predicts channel-like devices (USB, SCSI) and hardware support, DMA address remapping and interrupt routing to the right VM, that would let device drivers in the VM talk to the device directly with no trap into the VMM, which is the I/O hardware virtualization described later in this note.
 
 ## Passthrough Model
 In the **passthrough model**, the VMM-level driver is responsible for  configuring the access permissions to a device. For example, it will allow a guest VM to have access to the memory registers corresponding to a device.
@@ -239,11 +272,15 @@ One benefit of this approach is that the device emulation overhead can be elimin
 ## Hardware Virtualization
  In the x86 world, the two virtualization-friendly architectures are the AMD Pacifica architecture and the Intel Vanderpool Technology architecture, both created circa 2005.
 
+> **Paper (Rosenblum & Garfinkel):** Writing in 2005, the paper predicted this. It notes that Intel's Vanderpool and AMD's Pacifica had *announced* hardware support, and that rather than making the existing execution modes virtualizable, both add a *new execution mode* that lets a VMM safely use direct execution, reducing both the number of traps and the cost of each. The paper forecasts that with such support, direct-execution-only VMMs become possible on x86, and that if it works as well as the old IBM mainframe support, the value of a fully compatible VM abstraction will outweigh any performance benefit from breaking compatibility (that is, from paravirtualization). The note describes what actually shipped.
+
 One of the first things that was fixed was to close the holes with the 17 non-virtualizable hardware instructions so that they will cause a trap and pass control over to the hypervisor in privileged mode.
+
+> **Paper (Popek & Goldberg):** Closing these holes is precisely making x86 satisfy Theorem 1. Forcing the 17 sensitive-but-unprivileged instructions to trap moves them into the privileged set, so that the set of sensitive instructions becomes a subset of the privileged instructions and the trap-and-emulate VMM the paper proves constructible can again be built, this time directly in hardware rather than worked around by binary translation.
 
 Also, the new protection mode was introduced. Now, there was a "root" and "non-root" mode (also known as "host" and "guest", respectively).
 
-Support was added for the hardware processor to interpret the state of the virtual processors (or vCPUs). This information is captured in a VM control block. The hardware understands how to "walk" this data structure, and can specify whether or not a system call should trap.
+Support was added for the hardware processor to interpret the state of the virtual processors (or vCPUs). This information is captured in a per-vCPU control structure, called the **VM control structure** (VMCS) on Intel and the **VM control block** (VMCB) on AMD. The hardware understands how to "walk" this data structure, and can specify whether or not a system call should trap.
 
 Once hardware was able to detect the presence of different VMs, the next step was to tag the memory structures used by the hypervisor with the different VM identifiers.
 
@@ -256,4 +293,12 @@ Other features were added for better security and management support.
 Finally, a number of new instructions were added to x86 in order to implement these new features. For example, a new instruction was added to allow switching into new protection mode.
 
 ## x86 VT Revolution
+Intel summarizes its virtualization advances along three dimensions, each a separate axis of hardware support.
+
+The first vector is the CPU itself: fixing the non-virtualizable instructions and adding support such as extended page tables. These modifications are branded **VT-x**, with VT-x2 and VT-x3 in later processor generations.
+
+The second vector is the chipset, including support for I/O virtualization technologies, I/O routing, and direct device access (for example SR-IOV at the platform level). These are branded **VT-d**.
+
+The third vector pushes support down into the devices themselves, so devices integrate more easily into a virtualized environment. Examples include DMA remapping, so a device DMAs into the memory belonging to the correct VM, and multiple logical interfaces (queues) so a separate logical interface can be handed to each VM. This device-resident support is branded **IOV** (I/O virtualization) and **VMDq** (virtual machine device queues).
+
 ![](https://assets.omscs.io/notes/57D4D274-194C-4906-8331-48AC6C00F7FE.png)
