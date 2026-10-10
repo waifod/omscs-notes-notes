@@ -7,6 +7,13 @@ lecture: synchronization-constructs
 
 # Synchronization Constructs
 
+**Reference paper**: [The Performance of Spin Lock Alternatives for Shared-Memory Multiprocessors](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-anderson-paper.pdf) - Thomas Anderson.
+
+**OSTEP chapters**:
+* [28. Locks](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf)
+* [30. Condition Variables](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf)
+* [31. Semaphores](https://pages.cs.wisc.edu/~remzi/OSTEP/threads-sema.pdf)
+
 ## Why Are We Still Talking About Synchronization?
 During our past discussion of synchronization constructs - like mutexes and condition variables - we mentioned a number of common pitfalls.
 
@@ -38,12 +45,16 @@ When a thread leaves the critical section, it signals the semaphore, which will 
 
 If a semaphore is initialized with a 1 - a binary semaphore - it will behave like a mutex, only allowing one thread at a time to pass.
 
+Semaphores let us express count-related synchronization requirements that a mutex cannot. For instance, if we want to allow exactly five producers to produce an item at the same time, we initialize the semaphore with 5, and it will count down and admit exactly five threads before the rest must wait.
+
+Semaphores were originally designed by Edsger Dijkstra, a Dutch computer scientist and Turing Award winner. The wait and post operations are historically written as P and V, from the Dutch words that Dijkstra used: P from a word meaning to try (to test out) and V from *verhogen*, meaning to increase. If you ever see a semaphore manipulated with operations named P and V, these are the wait and post operations.
+
 ## POSIX Semaphores
 The simple POSIX semaphore API defines one type `sem_t` as well as three operations that manipulate that type. These operations create the semaphore, wait on the semaphore, and unlock the semaphore.
 
 ![](https://assets.omscs.io/notes/EA5326AD-08F0-47F0-9ACC-0640A0BFC497.png)
 
-**NB** The pshared flag indicates whether the semaphore is to be shared across processes.
+**NB**: The pshared flag indicates whether the semaphore is to be shared across processes.
 
 ## Reader/Writer Locks
 When specifying synchronization requirements, it is sometimes useful to distinguish among different types of resource access.
@@ -69,16 +80,20 @@ Some implementations refer to reader/writer locks as **shared/exclusive** locks.
 
 Implementations may differ on how recursively-obtained read locks are unlocked. When unlocking a recursive read lock, some implementations unlock all the recursive locks, while others only unlock the most recently acquired lock.
 
-Some implementations allow readers to convert their lock into a writer lock mid-execution, while other implementations do not allow this upgrade.
+Some implementations allow readers to convert their lock into a writer lock mid-execution, while other implementations do not allow this upgrade. Where the upgrade is not allowed, a reader must release its read lock and then contend to re-acquire the lock with write access, competing with any other thread trying to do the same.
 
-Some implementations block an incoming reader if there is a writer already waiting, while others will let this reader acquire its lock.
+Some implementations block an incoming reader if there is a writer already waiting, while others will let this reader acquire its lock. This case is really about the coupling between the lock state, the priorities of the threads, and the system's scheduling policy. If a waiting writer has higher priority than an arriving reader, an implementation that respects priority may block the arriving reader even though the readers already in the critical section would otherwise have let it join.
 
 ## Monitors
 All of the constructs that we have seen so far require developers to explicitly invoke the lock/unlock and wait/signal operations. As we have seen, this introduces more opportunity to make errors.
 
 **Monitors** are a higher level synchronization construct that allow us to avoid manually invoking these synchronization operations. A monitor will specify a shared resource, the entry procedures for accessing that resource, and potential condition variables used to wake up different types of waiting threads.
 
-When invoking the entry procedure, all of the necessary locking and checking will take place by the monitor behind the scenes. When a thread is done with a shared resource and is exiting the procedure, all of the unlocking and potential signaling is again performed by the monitor behind the scenes.
+When invoking the entry procedure, all of the necessary locking and checking will take place by the monitor behind the scenes. When a thread is done with a shared resource and is exiting the procedure, all of the unlocking and potential signaling is again performed by the monitor behind the scenes. Because the locking, checking, and signaling are hidden from the programmer, monitors are called a high-level synchronization construct.
+
+Historically, monitors were included in the Mesa language runtime developed by Xerox PARC. Java supports monitors as well: every object has an internal lock, and methods declared `synchronized` are entry points into the monitor, so the compiled code includes the appropriate locking and checking. The one operation that still has to be performed explicitly in Java is `notify`.
+
+The term "monitor" also refers to the programming style that uses mutexes and condition variables to bracket a critical section with explicit enter and exit code. This is the style we described in the threads and concurrency lesson with the enter-critical-section and exit-critical-section code.
 
 ## More Synchronization Constructs
 **Serializers** make it easier to define priorities and also hide the need for explicit signaling and explicit use of condition variables from the programmer.
@@ -193,6 +208,8 @@ In addition, in order to guarantee atomic behavior, we have to generate the cohe
 
 In summary, atomic instructions on SMP systems are more expensive than on single CPU system because of bus or I/C contention. In addition, atomics in general are more expensive because they bypass the cache and always trigger coherence traffic.
 
+> **Paper (Anderson):** "Atomics always bypass the cache" is a teaching simplification. The lecture adopts it as a clean mental model, but Anderson's Section II.A describes real atomic implementations that cooperate with the cache rather than ignoring it. Under write-back invalidation the atomic obtains the current value from whichever cache holds it dirty, at the same time it invalidates that copy, avoiding an extra memory write. Under distributed-write coherence the block an atomic needs is often already cached, so the initial read is skipped entirely and only the final update needs a bus cycle. What is genuinely unavoidable, and what the lecture is really capturing, is the arbitration and the coherence traffic: the invalidation happens before the instruction executes "even if the instruction does not change the value of the location."
+
 ## Spinlock Performance Metrics
 We want the spinlock to have *low latency*. We can define latency as the time it takes a thread to acquire a free lock. Ideally, we want the thread to be able to acquire a free lock immediately with a single atomic instruction.
 
@@ -228,6 +245,8 @@ First we check if the lock is busy. Importantly, this check is performed against
 
 This spinlock is referred to as the **test-and-test-and-set spinlock**.  It is also called a spin-on-read or spin-on-cached-value spinlock.
 
+> **Paper (Anderson):** Anderson credits this "spin on read" idea to Segall and Rudolph, not to his own paper; his contribution is the analysis of why it still performs poorly, and the alternatives (delay and queueing) that follow. He also assumes short-circuit evaluation of the loop predicate, so the `test_and_set` runs only when the cached read already shows the lock free (Section III.B).
+
 From a latency and delay standpoint, this lock is okay. It is slightly worse than the test-and-set lock because we do have to perform this extra step.
 
 From a contention standpoint, our performance varies.
@@ -244,8 +263,12 @@ If we have a write-update situation, that coherence traffic will update the valu
 
 However, write-invalidate will invalidate the cached copy. Even if the value hasn't changed, the invalidation will force the CPU to go to main memory to execute the atomic. What this means is that any time another CPU executes an atomic, all of the other CPUs will be invalidated and will have to go to memory.
 
+> **Paper (Anderson):** The lecture frames spin-on-read's weakness as a steady-state property of write-invalidate. The paper's sharper claim (Section III.B) is a transient one: when the lock is released and reacquired, there is a "quiesce" period during which some processors have a pending read miss and others a pending (doomed) test-and-set, and each failing test-and-set re-invalidates every cached copy. For a *small* critical section this transient dominates, so spin-on-read "has almost as much effect on busy processors as spinning directly on a test-and-set"; for a long critical section the initial slowdown matters less. Anderson measured the time to quiesce on the Sequent Symmetry and found it grows linearly with the number of spinning processors (Fig. 2). He also lists three distinct causes, not just invalidation: the separation between noticing the release and committing to the test-and-set, invalidation on an unchanged value, and the O(P) cost of refilling P caches after one invalidation (Section III.C).
+
 ## Spinlock "Delay" Alternatives
 We can introduce a delay in order to deal with the problems introduced by the `test_and_set` and `test_and_test_and_set` spin locks.
+
+> **Paper (Anderson):** These delay schemes are borrowed from network arbitration, which the lecture does not say. Anderson treats a spin lock as analogous to a carrier-sense multiple-access (CSMA) network and adapts its methods: static delay from Aloha, dynamic delay from Ethernet's exponential backoff (Section IV.A). The dynamic version doubles a processor's mean delay on each "collision" (a failed test-and-set after seeing the lock free), capped at a bound equal to the number of processors so it degenerates to static slots under heavy contention, and it starts each visit at half its previous delay rather than from zero. Anderson also warns the network analogy is imperfect: a network collision aborts all parties equally, whereas a test-and-set "collision" still lets one processor win, so the cost depends on how many collide.
 
 ![](https://assets.omscs.io/notes/525BCCBF-AF42-4E79-A432-B1108B420862.png)
 
@@ -322,6 +345,8 @@ From a contention perspective, this lock is much better than any locks we have d
 
 In order to realize these contention gains, we must have a cache coherent architecture. Otherwise, spinning must involve remote memory references. In addition, we have to make sure that every element is on a different cache line. Otherwise, when we change the value of one element in the array, we will invalidate the entire cache line, so the processors spinning on other elements will have their caches invalidated.
 
+> **Paper (Anderson):** The lecture presents the queueing lock as a clear win under contention and leaves it there. The paper adds two caveats. First, queueing makes the preemption problem worse: if any spin-waiting process is preempted while in line, every process behind it must wait when it reaches the front before being rescheduled, which can force lock-step behavior for a small, frequently accessed critical section (Section IV.B). Second, queueing makes it harder to wait on multiple locks at once, since a processor can only be in one queue at a time, so it does not adapt to the trick of splitting a resource across several locks. Anderson also notes the design was devised independently by Graunke at Sequent, and that on the Symmetry, which has an atomic increment but no atomic read-and-increment that returns the old value, his own measurements had to protect the sequence number with a separate backoff lock.
+
 ## Spinlock Performance Comparisons
 
 ![](https://assets.omscs.io/notes/6D87B21E-1691-43A6-BB9D-9901D9B4E543.png)
@@ -332,9 +357,13 @@ The platform that was used was Sequent Symmetry, which has twenty processors, wh
 
 The metric that was computed was the **overhead**, which was measured in comparison to a case of ideal performance, which corresponded to the theoretical limit - assuming no delay or contention - of how long it would take to execute the number of critical sections.  The measured difference between the theoretical limit and the observed execution time was the overhead.
 
+> **Paper (Anderson):** A few details behind this figure (Anderson's Fig. 3). The plotted quantity is spin-waiting *overhead*, the elapsed time minus the simulated "ideal" (free spin-waiting) time, which isolates the spinning cost. Spinning directly on test-and-set is *not* on this graph; it appears only in Fig. 1, where it is so bad it would be off the chart here. The queueing measurement is handicapped: because the Symmetry lacks an atomic read-and-increment, Anderson's queue protects its sequence number with a backoff lock, which is why in the separate burst-arrival experiment (Fig. 5) queueing does *not* win at high processor counts. The paper's headline conclusion names two winners jointly, not one: backoff and queueing both scale well, with backoff better when there is no contention (lower latency) and queueing better when there are waiting processors (it parallelizes the lock handoff). Anderson frames the queue's advantage as doing the atomic's work before the lock is released, so throughput can actually rise as the critical section becomes a bottleneck.
+
 Under high load, the queueing lock performs the best. It is the most scalable; as we add more processors, the overhead does not increase.
 
 The `test_and_test_and_set` lock performs the worst under load. The platform is cache coherent with write-invalidate, and we discussed earlier how this strategy forces O(N^2) memory references to maintain cache coherence.
+
+> **Paper (Anderson):** The O(N^2) figure is the lecture's (and the course quiz's) accounting, not Anderson's notation. The paper describes the same cascade in prose: on release, O(P) processors each read-miss and then issue a test-and-set, and each test-and-set re-invalidates all O(P) copies, so the release triggers on the order of P events each costing on the order of P. Anderson states a single fix (for example eliminating redundant invalidations) still leaves "bus activity that grows linearly with the number of processors" (Section III.C); the quadratic total is the combination of the per-release and per-invalidation linear factors.
 
 Of the delay-based alternatives, the static locks are a little better than the dynamic locks, since dynamic locks have some measure of randomness and will have more collisions than static locks. Also, delaying after every reference is slightly better than delaying after every lock release.
 
