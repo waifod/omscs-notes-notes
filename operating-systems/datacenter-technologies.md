@@ -23,16 +23,16 @@ Multiprocess configurations will need to communicate via some form of IPC, which
 ## Internet Service Architectures
 For services that need to deal with high or variable requests rates, choosing a configuration that requires multiple processes - potentially on multiple nodes - becomes necessary.
 
-We can **scale out** a service deployment by running the service on more nodes.
+We can **scale out** a service deployment by running the service on more nodes. Multiprocess configurations are the easiest way to deal with increases in incoming request rates.
 
-A front-end load-balancing component would route the incoming request to an appropriate or available machine that implements the internet service.
+A front-end load-balancing component would route the incoming request to an appropriate or available machine that implements the internet service. This is similar to the boss-worker pattern we discussed when structuring multithreaded parallel programs: the front-end is the boss, and the nodes are the workers, which may be general purpose or specialized.
 
 Behind the load balancer, we can have one or two different setups. In a **homogenous** setup, all nodes are able to execute any possible step in the request processing pipeline, for any request that can come in. In a **heterogenous** setup, nodes execute some specific steps in the request processing, for only some request types.
 
 ## Homogenous Architectures
 Any node in a functionally homogenous setup can process any type of request and can perform any of the processing actions that is required in the end-to-end request processing.
 
-The benefit of this is that the front-end (load balancer) can be kept very simple. It doesn't have to keep track of which node can service which type of request; instead, it can assign requests in a round-robin manner to the next available node.
+The benefit of this is that the front-end (load balancer) can be kept very simple. It doesn't have to keep track of which node can service which type of request; instead, it can assign requests in a round-robin manner to the next available node. The front-end could also be enhanced in a simple way, keeping some information about CPU loads or utilization on the other nodes and using that to direct requests.
 
 This design doesn't mean that every node has all of the data. Instead, data may somehow be replicated or distributed across the nodes. Importantly, every node is able to get to any type of information that is necessary for the execution of the service.
 
@@ -41,7 +41,7 @@ One downside of this approach is that there is little opportunity to benefit fro
 ## Heterogenous Architectures
 In a functionality heterogenous setup, different nodes are designated to perform certain functions or handle certain types of requests.
 
-For instance, requests may be divided among the servers based on request content. In the case of eBay, servers may be specialized for browsing requests vs. bidding/buying requests.
+For instance, requests may be divided among the servers based on request content, such as the alphabetical order of the requested file name. In the case of eBay, servers may be specialized for browsing requests vs. bidding/buying requests.
 
 Since different nodes perform different tasks, it may not be necessary to ensure that data is uniformly accessible everywhere. Certain types of data may be much more easily accessible from the servers that manipulate those types of data.
 
@@ -51,20 +51,25 @@ One downside of this approach is that the front-end needs to be more complex. Th
 
 In addition, the overall management of this system becomes more complex. When a machine fails, or requests increases, it is important to understand which types of servers need to be scaled out.  
 
-Also, if something changes fundamentally in the workload pattern, the server layout needs to be reconfigured. It's not as easy as scaling up or down.
+Also, if something changes fundamentally in the workload pattern, the server layout needs to be reconfigured. It's not as easy as scaling up or down. We can't just redirect the excess requests to other nodes if those nodes are not capable of processing that kind of action or serving that kind of data, even if those nodes are otherwise idling. As a result, it is much easier in these environments to end up with nodes that become hotspots, with long backlogs of pending requests.
+
+## Scale Out Limitations
+Scaling out by continually adding nodes does not work forever. Consider a toy shop where the manager keeps adding workers, work benches, and parts as orders increase. At some point the manager can no longer control any more resources, because a single person has a limited amount of attention. There is also a physical limit to how much staff can fit in the shop. Outsourcing could help, but if the manager only trusts their own workers, that option is closed.
+
+The same limitations exist for internet services. Given the size of the data center, there is a limit on the resources that can be placed there, and given the complexity of the management processes, there is a limit on how many different things can be managed. Running our own software stacks, operating systems, and services only tightens these constraints. Cloud computing emerged to address these limitations on scale.
 
 ## Cloud Computing Poster Child: Animoto
 Amazon was a dominant online retailer in the early 2000s. However, the workload that they needed to handle was imbalanced. The bulk of their traffic was received during the holiday shopping season, and much of the hardware they provisioned sat idle outside of that window.
 
 In 2006, Amazon opened up access to its hardware resources via web-based APIs. This meant that third party workloads could be run on Amazon resources, for a fee.
 
-This was the birth of **Amazon Web Services** (AWS) and **Amazon Elastic Cloud Compute** (EC2).
+This was the birth of **Amazon Web Services** (AWS) and **Amazon Elastic Compute Cloud** (EC2).
 
 Around the same time, a company called Animoto was created. This company stitched together photos into a movie, which is a fairly resource-intensive task. As a result, they chose to rent EC2 instances instead of building out their own datacenter.
 
-Originally, Animoto required about 50 EC2 instances.
+Originally, Animoto required about 50 EC2 instances. These were not physical servers but virtual machines, and Animoto had no control over whether they ran on the same physical server or many different ones.
 
-In 2008, Animoto became available to Facebook users. Within three days, Animoto signed up 750,000 new users, and scaled up to 3,400 EC2 instances.
+In 2008, Animoto became available to Facebook users. Within three days, Animoto signed up 750,000 new users. The number of instances grew from 50 on Monday to 400 by Tuesday, an order of magnitude in a day, and reached 3,400 by Friday.
 
 In a week, Animoto had scaled up the number of servers it used by two orders of magnitude.
 
@@ -103,23 +108,23 @@ Providers offer different types of billing and accounting services. Some marketp
 
 Billing is often not done by raw usage, as overheads with monitoring at that level of fine-grained control are pretty high. Instead, billing is done based on some discrete step function. For example, compute resources may be billed according to "size": tiny, medium, extra-large.
 
-All of this is managed by the cloud provider. Common software stacks more managing cloud resources include the open source OpenStack and VMware's vSphere software stack.
+All of this is managed by the cloud provider. Common software stacks for managing cloud resources include the open source OpenStack and VMware's vSphere software stack.
 
 ## Why Does Cloud Computing Work?
 Two basic principles provide the fundamental theory behind the cloud computing approach.
 
-The first is the **law of large numbers**. This says that average resource needs across a large number of clients will remain fairly constant. This is the reason that a cloud provider can support a number of clients with variable peak loads on a fixed amount of resources.
+The first is the **law of large numbers**. This says that average resource needs across a large number of clients will remain fairly constant. This is the reason that a cloud provider can support a number of clients with variable peak loads on a fixed amount of resources, since those peaks tend to be shifted in time.
 
 The second is **economies of scale**.  A cloud provider is able to leverage a large number of customers on a single piece of hardware, which amortizes the cost of that hardware across those customers, assuming the number of customers is large enough.
 
 ## Cloud Computing Vision
-> If computers of the kind I have advocated become the computers of the future, then computing may some day be organized as a public utility, just saw the telephone system is a public utility … The computer utility could become the basis of a new and important industry.   
+Although cloud computing is a relatively new trend, the vision is old. The oldest description, by John McCarthy in 1961, predates the technology by almost half a century.
 
-Based on this vision, cloud computing should turn the IT resource into a fungible utility.
+> If computers of the kind I have advocated become the computers of the future, then computing may some day be organized as a public utility, just as the telephone system is a public utility … The computer utility could become the basis of a new and important industry.   
 
-We shouldn't need to care about which hardware resources are used, or where they are. Virtualization technology is definitely an enabler in this process.
+Based on this vision, cloud computing should turn the IT resource into a fungible utility. Just as we turn on a switch for electricity without worrying about where it comes from, we shouldn't need to care which hardware resources are used, or where they are. Virtualization technology is definitely an enabler in this process.
 
-Unfortunately, some limitations exist. For example, even with virtualization, they are some hardware dependencies that cannot be masked. In addition, different providers support different APIs; thus, we cannot seamlessly switch amongst providers without rewriting code. In addition, there are privacy/security concerns associated with putting core business code in the hands of an external provider.
+Unfortunately, some limitations exist. For example, even with virtualization, there are some hardware dependencies that cannot be masked, so software that expects a certain hardware platform cannot simply run on another resource. In addition, different providers support different APIs; thus, we cannot seamlessly switch amongst providers without rewriting code (API lock-in). There are privacy/security concerns associated with putting core business code and data in the hands of an external provider. Finally, latency is an issue, given the geographic distance between us and the resources we access.
 
 ## Cloud Deployment Models
 In **public clouds**, the infrastructure belongs to the cloud provider, and third party customers/tenants can rent the hardware to perform their computational tasks.
@@ -139,11 +144,11 @@ Without the use of cloud computing, you run your application on premises, which 
 
 At the other extreme, you can use cloud computing services to provide you with a complete application. This is what we call **Software as a Service** (SaaS). Gmail is a great example of a SaaS platform.
 
-A **Platform as a Service** (PaaS) provides you with certain APIs to allow you to develop certain types of applications. The platform provides an execution environment, which includes the OS and other tools necessary for the application to run in that environment. Google App Engine is an example of a PaaS platform. This PaaS provides everything needed to develop android applications.
+A **Platform as a Service** (PaaS) provides you with certain APIs to allow you to develop certain types of applications. The platform provides an execution environment, which includes the OS and other tools necessary for the application to run in that environment. Google App Engine is an example of a PaaS platform. This PaaS provides everything needed to develop android applications. Windows Azure was originally a PaaS offering for developing and running .NET applications.
 
-At the lowest level, clouds can provide infrastructure instances, like compute instances that consist of the CPUs with accompanying memory, storage and network infrastructure. Amazon EC2 is a such a model of this **Infrastructure as a Service** (IaaS).
+At the lowest level, clouds can provide infrastructure instances, like compute instances that consist of the CPUs with accompanying memory, storage and network infrastructure. Amazon EC2 is a such a model of this **Infrastructure as a Service** (IaaS). These instances can also include other hardware resources such as GPUs.
 
-These types of clouds still don't provide access to the physical resources directly, rather only the virtualized resources. It is often the case that you are sharing the physical resources with other tenants. That being said, Amazon does provide high-performance instances that are single tenant.
+These types of clouds still don't provide access to the physical resources directly, rather only the virtualized resources. It is often the case that you are sharing the physical resources with other tenants. That being said, Amazon does provide high-performance instances that are single tenant, where the VM runs independently on physical hardware; the same applies to GPU-enabled instances. This is due to the technical challenge of reaching sufficient performance for these instances in a virtualized environment.
 
 ## Requirements for the Cloud
 Clouds must provide **fungible** resources. This means that the resources can easily be repurposed to support different customers with different types of requirements. Without fungibility, the economic opportunity for cloud providers disappears.
@@ -152,7 +157,7 @@ Clouds must integrate resource management methods that support the premise of cl
 
 Such management methods must be able to operate at very large scale - up to tens of thousands of nodes. Scale is important for both the cloud provider, in terms of resource management, and in terms of the customer, in terms of on-demand resource allocation.
 
-Once scale is introduced, failures become inevitable. The probability of system failure increases with the number of components in the system, which each have an independent probability of failure. We have to incorporate mechanisms to deal with failures.
+Once scale is introduced, failures become inevitable. The probability of system failure increases with the number of components in the system, which each have an independent probability of failure. If a single component fails with probability `p`, then the probability that at least one of `n` components fails is `1 - (1 - p)^n`. With `p = 0.03` and `n = 10`, this is about 26%; with `n = 100`, it rises to about 95%. Real cloud systems have thousands or hundreds of thousands of components, so even with more reliable hardware, something somewhere will be failing. We have to incorporate mechanisms to deal with failures, such as timeouts for detection, restart and retry for recovery, and backup and checkpointing.
 
 Clouds are shared resources, so cloud management has to provide mechanisms that guarantee performance and  isolation across these multi-tenant environments. Misbehaving tenants should not be able to wreak havoc on other tenants and/or the entire system.
 
