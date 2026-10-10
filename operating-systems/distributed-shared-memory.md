@@ -7,6 +7,8 @@ lecture: distributed-shared-memory
 
 # Distributed Shared Memory
 
+**Reference paper**: [Distributed Shared Memory: Concepts and Systems](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-protic-paper.pdf) - Protic et al.
+
 ## Reviewing DFS
 Distributed file systems are an example of a distributed service in which the state - the files - are stored on some set of server nodes and are then accessed by some set of client nodes. The servers own and manage the state, and provide a service - the file access operations - which are requested by the clients and operate on the state.
 
@@ -40,7 +42,7 @@ Naturally, the overall memory access will be slower in a DSM environment as a re
 
 Distributed shared memory is becoming more relevant today because commodity interconnect technologies offer really low latencies between nodes in a system via **Remote Direct Memory Access** (RDMA) interfaces.
 
-## Hardware vs Software DSM
+## Hardware vs. Software DSM
 DSM can be supported in hardware or software.
 
 Hardware-supported DSM relies on some physical interconnect. The OS running on each physical node is under the impression that it has access to much larger physical memory, and is allowed to establish virtual to physical mappings that point to physical addresses on other nodes.
@@ -53,6 +55,8 @@ The NICs are involved in all aspects of the memory management, access and consis
 
 While it's very convenient to rely on hardware to do everything, this type of hardware is typically very expensive and as a result is reserved for very high-end machines.
 
+> **Paper (Protic et al.):** Hardware DSM operates at a small, non-structured granularity, typically a cache line, so it is essentially an extension of the cache-coherence schemes of scalable shared-memory multiprocessors ("Hardware-level DSM implementations," p.69). The finer granularity minimizes false sharing and thrashing, and hardware search and directory functions are much faster than software ones, but advanced coherence and latency-reduction techniques complicate design and verification. The paper classifies hardware DSM into three families (hardware sidebar, p.72-75): cache-coherent non-uniform memory architectures (CC-NUMA, e.g. Memnet, Dash, SCI), cache-only memory architectures (COMA, e.g. KSR1, DDM), and reflective memory systems (RMS, e.g. RMS and Merlin).
+
 Instead, DSM is often realized in software. The software will have to
 
 - detect local vs remote memory accesses
@@ -61,6 +65,8 @@ Instead, DSM is often realized in software. The software will have to
 - be involved in memory sharing and consistency support
 
 This can be done at the level of the operating system or with a programming language runtime.
+
+> **Paper (Protic et al.):** The paper splits implementation into three groups rather than two: software, hardware, and **hybrid** ("Implementation level of the DSM mechanism," p.67-71). It frames the choice as a price/performance trade-off: hardware is typically superior in performance but affordable only for high-end machines; low-end systems such as networks of PCs are limited to software; mid-range clusters of workstations suit low-cost hybrid solutions. Even "entirely hardware" systems expose software-controlled features (prefetch, update, deliver in Dash; prefetch and poststore in KSR1), and "purely software" systems lean on hardware such as virtual-memory management (IVY) or ECC bits (Blizzard-E). The lesson quiz draws on the hybrid section specifically: across the hybrid systems the paper surveys, **prefetching** is the task consistently left to software, because whether it helps depends on the application's access pattern, whereas address translation and invalidation are more concretely defined and easier to put in hardware.
 
 ## DSM Design: Sharing Granularity
 In SMP systems, the granularity of sharing is the **cache line**. The hardware tracks concurrent memory accesses at the granularity of a single cache line, and triggers the necessary coherence mechanisms if it detects that a shared cache line has been modified.
@@ -87,16 +93,20 @@ Once we start increasing the granularity of sharing, we have to beware of **fals
 
 Consider a page that internally has two variables, x and y. A process on one node is exclusively accessing and modifying x. Similarly, a process on another node is exclusively accessing and modifying y. When x and y are on the same page, the DSM system will interpret the two write accesses as an indication of concurrent access to a shared page. This will trigger coherence mechanisms which, while logically viable, are functionally superfluous.
 
+> **Paper (Protic et al.):** The paper frames granularity as a two-sided trade-off ("Coherence unit granularity," p.78). Coarser blocks save directory storage and suit applications with high reference locality, but they raise the probability that different processors contend for the same block even when they touch unrelated parts of it. It lists false sharing together with **thrashing** as the two adverse effects of coarse-grain, virtual-memory-based software DSM, and this is why hardware systems favour cache-line granularity.
+
 ## DSM Design: Access Algorithm
 Another important design point when looking at DSM solutions is to understand what types of memory accesses the higher-level applications expect to perform.
 
 The simplest kind of application is the **single reader/single writer**. For these kinds of applications, the main role of the DSM layer is to provide the application with the ability to access additional, remote memory. In this case, there are not any consistency- or sharing-related challenges that need to be supported at the DSM layer.
 
-The more complex case is when the application needs to support **multiple readers/single writer** or **multiple readers/multiple writers**. In these cases, it's not just about how to read or write the correct physical location of memory.
+The more complex case is when the application needs to support **multiple readers/single writer** or **multiple readers/multiple writers**. In these cases, it's not just about how to read or write the correct physical location of memory. Multiple reader/single writer is a simpler special case of multiple reader/multiple writer, so the rest of the lesson focuses on the multiple reader/multiple writer problem.
+
+> **Paper (Protic et al.):** The paper presents these not as access patterns but as classes of DSM *algorithm*, each with a characteristic coherence policy ("DSM algorithms" section, p.65-66). Single reader/single writer algorithms prohibit replication (the central-server and "hot potato" migration algorithms fall here). Multiple reader/single writer algorithms are also called read-replication and are "usually invalidation-based," since a write must prevent use of stale copies; this is the class Li and Hudak's manager algorithms belong to. Multiple reader/multiple writer, also called full-replication, allows replicated copies with read and write permission and "often serves with write-update protocols," propagating each update to all copies by multicast or broadcast.
 
 With multiple writers and readers, it's important that the reads return the most recent value at a memory location. It's also important that all of the writes that are performed are correctly ordered. This is necessary so as to present a consistent view of the distributed state to all of the nodes in the system.
 
-## DSM Design: Migration vs Replication
+## DSM Design: Migration vs. Replication
 For a DSM solution to be useful, it must provide good performance to applications. Since the core service provided by DSM solutions is access, the core performance metric to analyze is **access latency**.
 
 Clearly, accessing local memory is faster than remote memory, so it's important to consider how to maximize the proportion of local memory accesses.
@@ -105,9 +115,13 @@ One way to maximize the proportion of local memory accesses is through  **migrat
 
 Migration makes sense in the single reader/single writer case, since only one node at a time will be accessing the state. However, moving data across nodes does incur overheads.
 
+> **Paper (Protic et al.):** The paper defines migration by its invariant rather than by the access pattern: "only a single copy of a data item exists at any one time, so the data item must be moved to the requesting site for exclusive use" ("DSM algorithms" section, p.65). It says designers prefer migration "when sequential patterns of write sharing are prevalent," which is broader than strict single reader/single writer. The migration-only variant of single reader/single writer is named the "hot potato" algorithm, and because data moves in fixed-size blocks rather than individual items, migration cost is amortized only when a node makes a long uninterrupted run of accesses.
+
 We should be careful about this solution, even in the single reader/single writer case. Copying over a large chunk of state just for a single read or write is a cost that cannot be amortized.
 
-With multiple readers and multiple writers, migrating the state all over the place doesn't make any sense since the state needs to be accessed by multiple nodes at the same time.
+With multiple readers and multiple writers, migrating the state all over the place doesn't make any sense since the state needs to be accessed by multiple nodes at the same time. Worse, under migration the single copy would have to be flipped back and forth between the competing nodes, so migration can actually increase access latency for the general case.
+
+> **Paper (Protic et al.):** The paper names this flip-back-and-forth effect **thrashing** and dedicates a mechanism to it ("Avenues for performance improvement," p.67): the Mirage system defines a time window during which a site is guaranteed to hold a page uninterruptedly after acquiring it, tunable statically or dynamically to the application's processor locality, so that an alternating sequence of accesses from different sites does not make migration the predominant activity.
 
 In this case, we use **replication** to copy the state on multiple nodes. While this solution is more general, it requires the consistency management. We have to make sure that writes are correctly ordered and that the most recent copies of the state are propagated across nodes for up-to-date reads.
 
@@ -140,6 +154,8 @@ This approach is referred to as
 - reactive
 - lazy
 - optimistic
+
+> **Paper (Protic et al.):** The paper attaches the eager/lazy distinction to specific named consistency models rather than to coherence triggering in general ("Memory consistency models," p.75). In its terminology, release consistency propagates modifications on each release and is "sometimes called eager consistency," while lazy release consistency postpones propagation until the next relevant acquire and sends only the modifications associated with the chain of synchronization operations on that specific lock. The eager example is the Dash and Munin systems; the lazy example is TreadMarks.
 
 Regardless of which strategy we chose, when these methods get triggered depends on the consistency model for the shared state.
 
@@ -248,6 +264,8 @@ Theoretically, for a perfect consistency model, we would like to achieve absolut
 
 We also want this to be in the exact same manner as the updates were performed in realtime. In this model, every node in the system will see all the writes in the system in the exact same order immediately as they are applied. This is only possible if changes are instantaneous and immediately visible anywhere.
 
+> **Paper (Protic et al.):** Strict consistency is not in the paper's taxonomy either; the lesson takes it from the general literature, where it is usually defined as "any read to a location returns the value of the most recent write," with "most recent" fixed by absolute global time (Tanenbaum). That definition subsumes the lesson's two phrasings here, immediate visibility and a single global order, so the lesson's wording is a stronger, teaching-oriented statement of the same impossible ideal rather than a competing definition.
+
 In practice, even on a single SMP system, there are no guarantees on the ordering of accesses from different cores unless we use some additional locking and synchronization primitives.
 
 In distributed systems, additional latency and the possibility of message loss or reordering make strict consistency impossible to guarantee.
@@ -272,6 +290,8 @@ However, if we let one process see one ordering of the updates, we have to make 
 In the above case, we cannot let P3 observe one value at a m1 while concurrently showing a different value to P4, which is also accessing m1.
 
 In sequential consistency, all processes will see the same interleaving. This interleaving may not correspond to the real way in which these operations were ordered, but it is guaranteed that every process in the system will see the same sequential ordering of the updates.
+
+> **Paper (Protic et al.):** This is Lamport's definition, which the paper states as: all processors observe the same interleaving of reads and writes issued in sequences by individual processors ("Memory consistency models," p.72-73). The paper also describes a model the lesson skips, **processor consistency**, which sits between sequential and weak: all processors must observe the writes of any one processor in the order that processor issued them, but different processors need not agree on the interleaving of writes from *different* processors, and reads are allowed to bypass writes in the service queue. VAX 8800, Plus, Merlin, and RMS are its examples.
 
 One constraint of the interleaving is that the updates made by the same process will not be arbitrarily interleaved. Operations from the same process always appear in the order they were issued.
 
@@ -304,6 +324,8 @@ For writes that are not casually-related - concurrent writes - there are no such
 
 Just like before, causal consistency ensures that writes that are performed on the same processor will be visible in the exact same order on other processors.
 
+> **Paper (Protic et al.):** Causal consistency is not one of the models the paper defines. Its taxonomy of consistency models runs sequential, processor, weak, release, lazy release, and entry ("Memory consistency models," p.72-77); it has no entry for strict or causal consistency, which the lesson draws from the general distributed-systems literature (Tanenbaum). The lesson's causal rule, that potentially causally related writes are seen in the same order by all processes while concurrent writes may be seen in different orders, matches the standard definition in that literature.
+
 ![](https://assets.omscs.io/notes/FD6FC037-E098-41D7-8446-A703DEB6B344.png)
 
 ## Weak Consistency
@@ -318,6 +340,8 @@ A memory system may introduce **synchronization points**, as operations that are
 A synchronization point makes sure that all of the updates that have happened prior to the synchronization point will become visible at other processors.
 
 Also, the synchronization point makes sure that all of the updates that have happened on other processors will become visible subsequently at the synchronizing processor in the future.
+
+> **Paper (Protic et al.):** The paper's definition of weak consistency carries a guarantee the lesson leaves implicit: the synchronization accesses *themselves* must be sequentially consistent ("Memory consistency models," p.74). Formally, a synchronization access waits for all previous accesses to complete, while ordinary reads and writes wait only for completion of previous synchronization accesses; memory is required to be consistent only at synchronization points. The lesson describes the visibility effect of a sync but not that syncs are ordered sequentially among themselves. Sun's SPARC uses a variant of weak consistency.
 
 If P1 performs a synchronization operation after writing to m1, that doesn't guarantee that P2 will see that particular update at this moment. P2 hasn't explicitly synchronized with the rest of the system.
 
@@ -334,5 +358,7 @@ It is also possible to separate the synchronization types into two different ope
 A system may provide an **entry/acquire** point, which can be invoked when a particular process requires that all of the updates performed by other processors are visible to it. This corresponds to the sync that P2 performs above.
 
 Similarly, a system may provide an **exit/release** point, which can be invoked when a particular process wishes to release to all other processors the updates that it has made. This corresponds to the sync that P1 performs.
+
+> **Paper (Protic et al.):** The paper treats these as two separate named models beyond weak consistency, and its naming does not line up with the lesson's "entry/acquire" label ("Memory consistency models," p.74-77). **Release consistency** is the model that splits a synchronization access into *acquire* and *release*: ordinary accesses may execute only after prior acquires on the same processor, and a release may execute only after prior ordinary reads and writes complete. That acquire/release pair is exactly what the lesson describes here. **Entry consistency** is a distinct, more aggressive model that additionally requires every ordinary shared variable to be associated with a specific synchronization variable, so that an acquire propagates only the subset of data that variable guards; Midway first implemented it. So the lesson's acquire/release mechanism is release consistency, and "entry" is a different model that the lesson's single acquire/release pair does not fully capture.
 
 These finer-grained operations ensure that the system controls that overheads that are imposed by the DSM layer. The goal of this control is to limit the required data movement and coherence operations that will be exchanged among the nodes in the system. As a result, the DSM layer will have to maintain some additional state to keep track of the different operations it needs to support.
