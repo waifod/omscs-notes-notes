@@ -7,6 +7,21 @@ lecture: memory-management
 
 # Memory Management
 
+**OSTEP chapters**:
+* [13. The Abstraction: Address Spaces](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf)
+* [14. Interlude: Memory API](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-api.pdf)
+* [15. Mechanism: Address Translation](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-mechanism.pdf)
+* [16. Segmentation](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-segmentation.pdf)
+* [17. Free-Space Management](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-freespace.pdf)
+* [18. Paging: Introduction](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-paging.pdf)
+* [19. Paging: Faster Translations (TLBs)](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf)
+* [20. Paging: Smaller Tables](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf)
+* [21. Beyond Physical Memory: Mechanisms](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf)
+* [22. Beyond Physical Memory: Policies](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf)
+* [23. Complete Virtual Memory Systems](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-complete.pdf)
+
+OSTEP treats memory virtualization in more depth than this lecture does, so these chapters go beyond what the course covers. The lecture only names the `malloc` and `free` interface that chapter 14 covers in full, and of chapter 23 only the section on demand zeroing and copy-on-write is relevant here; the rest of that chapter is two case studies the lecture does not cover. The lecture's material on checkpointing has no OSTEP counterpart.
+
 ## Memory Management: Goals
 Remember that one of the roles of the operating system is to manage the physical resources - in this case DRAM - on behalf of one or more executing processes.
 
@@ -151,6 +166,12 @@ As we add more levels, the internal page tables/directories end up covering smal
 
 The downside of adding more levels to the page table structure is that there are more memory accesses required for translation, since we will have to access more page table components before actually accessing the physical memory. Therefore, the translation latency will be increased.
 
+<details>
+<summary>Multi-level page table quiz spoiler</summary>
+
+Consider a process that uses 12-bit addresses and has only the first 2KB and the last 1KB of its address space allocated. With a 6-bit offset, each page is 64 bytes. A single-level page table with a 6-bit VPN needs an entry for every virtual page, so 2^6 = 64 entries regardless of what is actually used. In a 2-level table with a 2-bit outer index and a 4-bit inner index, each outer entry covers 2^(4+6) = 1KB of the address space, so one of the four outer entries maps to an unallocated region and needs no inner table at all. Each inner table holds 2^4 = 16 entries, and we need three of them, for 48 entries total - a 25% reduction over the flat table.
+</details>
+
 ## Speeding Up Translation TLB
 Adding levels to our page table structure adds overhead to the address translation process.
 
@@ -203,11 +224,11 @@ In practice, systems support different page sizes. For Linux, on x86 platforms t
 
  **Large pages** in Linux are 2MB in size, requiring an offset of 21 bits. **Huge pages** are 1GB in size, requiring an offset of 30 bits.
 
-One benefit of larger pages is that more bits are used for the offset, so fewer bits are used for the virtual page number. This means that we have fewer pages, which means we have a smaller (lower memory footprint) page table. Large pages reduce the page table size by a factor of 512, and huge page tables will reduce the page table size by a factor of 1024, relative to a page size of 4KB.
+One benefit of larger pages is that more bits are used for the offset, so fewer bits are used for the virtual page number. This means that we have fewer pages, which means we have a smaller (lower memory footprint) page table. Large pages reduce the page table size by a factor of 512 relative to a 4KB page, and switching from large pages to huge pages reduces it by another factor of 512.
 
 Larger pages means fewer page table entries, smaller page tables, and more TLB hits.
 
-The downside of the larger pages is the actual page size. If a large memory page is not densely populated, there will be larger unused gaps within the page itself, which will leads to wasted memory in pages, also known as **internal fragmentation**.
+The downside of the larger pages is the actual page size. If a large memory page is not densely populated, there will be larger unused gaps within the page itself, which will leads to wasted memory in pages, also known as **internal fragmentation**. Because of this, smaller 4KB pages are commonly used, while large and huge pages make the most sense in settings like databases or in-memory data stores.
 
 Different system/hardware combinations may support different page sizes. For example, Solaris 10 on SPARC machines supports 8KB, 4MB, and 2GB.
 
@@ -275,7 +296,7 @@ The benefit of the slab allocator is that internal fragmentation is avoided. The
 ## Demand Paging
 Since the physical memory is much smaller than the addressable virtual memory, allocated pages don't always have to present in physical memory. Instead, the backing physical page frame can be repeatedly saved and stored to and from some secondary storage, like disk.
 
-This process is knowing as **paging** or **demand paging**. In this process, pages are **swapped** from DRAM to a secondary storage device like a disk, where the reside on a special swap partition.
+This process is knowing as **paging** or **demand paging**. In this process, pages are **swapped** from DRAM to a secondary storage device like a disk, where the reside on a special swap partition. The swap partition does not have to be on disk; it can also sit on a flash device, or even in the memory of another node.
 
 When a page is not present in memory, it has its present bit in the paging table entry set to 0. When there is a reference to that page, then the MMU will raise an exception - a page fault - and that will cause a trap into the kernel.
 
@@ -298,9 +319,15 @@ Pages should be swapped when the memory usage in the system exceeds some thresho
 ###### Which pages should be swapped out?
 Obviously, the pages that won't be used in the future! Unfortunately, we don't know this directly. However, we can use historic information to help us make informed predictions.
 
-A common algorithm to determine if a page should be swapped out is to look at how recently a page has been used, and use that to inform a prediction about the page's future use. The intuition here is that a page that has been more recently used is more likely to be needed in the immediate future whereas a page that hasn't been accessed in a long time is less likely to be needed.
+A common algorithm to determine if a page should be swapped out is to look at how recently, or how frequently, a page has been used, and use that to inform a prediction about the page's future use. The intuition here is that a page that has been more recently used is more likely to be needed in the immediate future whereas a page that hasn't been accessed in a long time is less likely to be needed.
 
 This policy is known as the **Least-Recently Used** (LRU) policy. This policy uses the **access bit** that is available on modern hardware to keep track of whether or not the page has been referenced.
+
+<details>
+<summary>LRU quiz spoiler</summary>
+
+LRU is only a heuristic, and it can behave pathologically. Suppose an array of 11 page-sized entries is accessed in a loop, one after another, on a system with only 10 pages of physical memory. The first 10 pages load one at a time. Accessing the 11th evicts the least recently used page, which is page 1 - the very next page the loop needs. Bringing page 1 back evicts page 2, which is needed immediately after, and so on. Every single access faults, so 100% of accesses are demand paged. This is why operating systems can be configured to use different replacement policies.
+</details>
 
 Other candidates for pages that can be freed from physical memory are pages that don't need to be written out to disk. Writing pages out to secondary storage takes time, and we would like to avoid this overhead. To assist in making this decision, OS can keep track of the **dirty bit** maintained by the MMU hardware which keeps track of whether or not a given page has been modified.
 
@@ -329,6 +356,8 @@ At this point, the operating system will finally create the copy of the memory p
 
 We call this mechanism copy-on-write because the copy cost will only be paid when a write request comes in.
 
+Whether the write protection is removed from the page after this copy is made depends on how many other processes still share it. If other references to the write-protected page remain, it must stay protected so that their writes continue to trigger faults.
+
 ## Failure Management Checkpointing
 Another useful operating system service that can benefit from the hardware support for memory management is **checkpointing**.
 
@@ -340,10 +369,17 @@ A better approach will take advantage of the hardware support for memory managem
 
 However, since the process continues executing, it will continue dirtying pages. We can track the dirty pages - again using MMU support - and we will copy only the diffs on the pages that have been modified. That will allow us to provide for incremental checkpoints.
 
-This incremental checkpointing will make the recovery of the process a little bit more challenging, as we have to rebuild the process state from multiple diffs.
+This incremental checkpointing will make the recovery of the process a little bit more challenging, as we have to rebuild the process state from multiple diffs. Alternatively, these diffs can be aggregated in the background to produce more complete checkpoints.
 
 The basic mechanisms used in checkpointing can also be used in other services. For instance, debugging often relies on a technique called **rewind-replay**. Rewind means that we will restart the execution of a process from some earlier checkpoint. We will then replay the execution from that checkpoint onwards to see if we can reproduce the error. We can gradually go back to older and older checkpoints until we find the error.
 
 Migration is another service that can benefit from the same mechanisms behind checkpointing. With migration, we checkpoint the process to another machine, and then we restart it on that other machine. This is useful during disaster recovery, or during consolidation efforts when we try to condense computing into as few machines as possible.
 
 One way that we can implement migration is by repeating checkpoints in a fast loop until there are so few dirtied pages that a pause-and-copy becomes acceptable - or unavoidable.
+
+<details>
+<summary>Checkpointing quiz spoiler</summary>
+
+The frequency of checkpointing is a tradeoff. The more frequently you checkpoint, the faster you can recover from a fault, because the most recent checkpoint is closer to the point of failure and less execution has to be replayed. But frequent checkpointing also raises the overheads and the amount of state checkpointed: spacing checkpoints out lets repeated writes to a page be amortized into a single dirtied page, whereas frequent checkpoints capture more of those individual writes. You gain faster recovery at the cost of higher overhead.
+</details>
+
