@@ -7,8 +7,10 @@ lecture: inter-process-communication
 
 # Inter-Process Communication
 
-## Inter Process Communication
-**Inter process communication** (IPC) refers to a set of mechanisms that the operating system must support in order to permit multiple processes to interact amongst each other. This includes mechanisms related to synchronization, coordination, and communication.
+**OSTEP chapter**: [5. Interlude: Process API](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf). OSTEP's coverage here is limited to pipes; the System V shared memory and message queue material in this lecture is not in the book.
+
+## Inter-Process Communication
+**Inter-process communication** (IPC) refers to a set of mechanisms that the operating system must support in order to permit multiple processes to interact amongst each other. This includes mechanisms related to synchronization, coordination, and communication.
 
 IPC mechanisms are broadly categorized as either **message-based** or **memory-based**. Message-based IPC mechanisms include sockets, pipes, and message queues. Memory-based IPC utilizes shared memory. This may be in the form of unstructured shared physical memory pages or memory mapped files which can be accessed by multiple processes.
 
@@ -33,7 +35,7 @@ One of the positives of this approach is its relative simplicity. The OS kernel 
 The are several ways to implement message-based IPC.
 
 ### Pipes
-Pipes are characterized by two endpoints, so only two processes can communicate via a pipe. There is no notion of a message with pipes; instead, there is just a stream of bytes pushed into the pipe from one process and read from the pipe by the other process.
+Pipes are the simplest form of message passing and are part of the POSIX standard. They are characterized by two endpoints, so only two processes can communicate via a pipe. There is no notion of a message with pipes; instead, there is just a stream of bytes pushed into the pipe from one process and read from the pipe by the other process.
 
 ![](https://assets.omscs.io/notes/C3ABC9F5-3DF1-4795-A5ED-0EE0D815A999.png)
 
@@ -66,6 +68,8 @@ For instance, the socket may be a TCP/IP socket, which means that the entire TCP
 
 Socket-based communication can happen between processes on different machines! If the process are on different machines, then the communication buffer is really between the process and the network device that will actually send the data.
 
+When the two processes are on the same machine, the OS is smart enough to skip most of the protocol stack rather than send the data out onto the network only to receive it back. This stays hidden from the programmer, though it can be detected through performance measurements.
+
 ## Shared Memory IPC
 In shared memory IPC, processes read and write into a shared memory region. The operating system is involved in establishing the shared memory channel between the processes. What this means is that the OS will map certain physical pages in memory into the virtual address spaces of both processes. The virtual addresses in each process pointing a shared physical location do not have to be the same. In addition, the shared physical memory section does not need to be contiguous.
 
@@ -73,11 +77,11 @@ In shared memory IPC, processes read and write into a shared memory region. The 
 
 The big benefit of this approach is that once the physical memory is mapped into both address spaces, the operating system is out of the way. System calls are used only in the setup phase.
 
-Data copies are reduced, but not necessarily avoided. For data to be available to both processes, it needs to explicitly be allocated from the virtual addresses that belong to the shared memory region. If that is not the case, the data within the same address space needs to be copied in and out of the shared memory region.
+Data copies are reduced, but not necessarily avoided. For data to be available to both processes, it needs to explicitly be allocated from the virtual addresses that belong to the shared memory region. If that is not the case, the data within the same address space needs to be copied in and out of the shared memory region. In some cases the number of copies can be reduced further: if a process only needs to read the arguments another process left in the region, it can operate on them in place rather than copy them elsewhere first.
 
 Since the shared memory area can be concurrently accessed by both processes, this means that processes must explicitly synchronize their shared memory operations. In addition, it is now the developer's responsibility to handle any protocol-related implementations, which adds to the complexity of the application.
 
-Unix-based system support two popular shared memory APIs: SysV and POSIX. In addition, shared memory IPC can be established between processes by using a memory-mapped file.
+Unix-based system support two popular shared memory APIs: SysV and POSIX. In addition, shared memory IPC can be established between processes by using a memory-mapped file. The Android operating system uses a different form of shared memory IPC called Ashmem, which differs in various details and is mentioned here only as a reference.
 
 ## Copy vs. Map
 The goal of both message-based and memory-based IPC is to transfer data from the address space of one process to the address space of another process.
@@ -88,10 +92,10 @@ In memory-based IPC, CPU cycles are spent to map physical memory into the addres
 
 The memory-mapping operation is costly, but it is a one time cost, and can pay off even if IPC is performed once. In particular, when we need to move large amounts of data from one address space to another address space, the time it takes to copy - via message-based IPC - greatly exceeds the setup cost of the setup mapping performed in memory-based IPC.
 
-Windows systems leverage this difference. If the data that needs to be transferred is smaller than a certain threshold, the data is copied in and out of a communication channel via a port-like interface. Otherwise the data is mapped into the address space of the target process. This mechanism is called **Local Procedure Calls** (LPC).
+Windows systems leverage this difference. If the data that needs to be transferred is smaller than a certain threshold, the data is copied in and out of a communication channel via a port-like interface. Otherwise the data is copied once into a page-aligned area and that area is then mapped into the address space of the target process. This mechanism is called **Local Procedure Calls** (LPC).
 
 ## SysV Shared Memory
-The operating systems supports **segments** of shared memory, which don't need to correspond to contiguous physical pages. The operating system treats shared memory as a shared resource using system wide policies. That means that there is a limit on the total number of segments and the total size of the shared memory. Currently in Linux the limit is 4000 segments, although in the past it was as few as 6.
+The operating systems supports **segments** of shared memory, which don't need to correspond to contiguous physical pages. The operating system treats shared memory as a shared resource using system wide policies. That means that there is a limit on the total number of segments and the total size of the shared memory. Currently in Linux the limit is 4000 segments, although in the past it was as few as 6, and more recent versions had a limit of 128.
 
 When a process requests that a shared memory segment is created, the operating system allocates the required amount of physical memory and then it assigns to it a unique key. This key is used to uniquely identify the segment within the operating system. Another process can refer to this segment using this key. If the creating process wants to communicate with other processes using this segment of shared memory, then it needs to make sure that they learn this key somehow.
 
@@ -101,7 +105,7 @@ Detaching a segment means invalidating the virtual address mappings for the virt
 
 A segment is not really destroyed once it is detached. A segment may be attached, detached and re-attached by multiple processes many times through its lifetime.
 
-Once a segment is created, it's essentially a persistent entity until there is an explicit request for it to be destroyed. Note that this is very different from memory that is local to a process, which is reclaimed when the process exits.
+Once a segment is created, it's essentially a persistent entity until there is an explicit request for it to be destroyed or until the system reboots. Note that this is very different from memory that is local to a process, which is reclaimed when the process exits.
 
 ## SysV Shared Memory API
 To create or open a segment we use
@@ -147,13 +151,13 @@ shmctl(shmid, cmd, buf)
 If we specify `IPC_RMID` as the `cmd`, we can destroy the segment.
 
 ## POSIX Shared Memory API
-The POSIX shared memory standard doesn't use segments, but rather uses files.
+The POSIX shared memory standard doesn't use segments, but rather uses files. On Linux it has been supported since the 2.4 kernel, and despite being the standard it is not as widely supported as the SysV API.
 
 They are not "real" files that live in a filesystem that are used elsewhere by the operating system. Instead they are files that live in the *tmpfs* filesystem.  This filesystem is intended to look and feel like a filesystem, so the operating system can reuse a lot of the mechanisms that it uses for filesystems, but it is really just a bunch of state that is present in physical memory. The OS simply uses the same representation and the same data structures that are used for representing a file to represent a bunch of pages in physical memory that correspond to a share memory region.
 
 Since shared memory segments are now referenced by a file descriptor, there is no longer a need for the key generation process.
 
-A shared memory region can be created/opened with `shm_open`. To attach shared memory, we can use `mmap` and to detach shared memory we can use `munmap`. To destroy a shared memory region, we can call `shm_unlink`.
+A shared memory region can be created/opened with `shm_open`. To attach shared memory, we can use `mmap` and to detach shared memory we can use `munmap`. There is also a `shm_close`, which only removes the file descriptor from the process; to actually delete the shared memory data structures and free the segment we must call `shm_unlink`.
 
 ## Shared Memory and Sync
 When data is placed in shared memory, it can be concurrently accessed by all processes that have access to that shared memory region. Therefore, such accesses must be synchronized in order to avoid race conditions. This is the same situation we encountered in multithreaded environments.
@@ -188,9 +192,19 @@ We can rely on other means of synchronization in those cases, such as message qu
 
 With message queues, we can implement mutual exclusion via send/recv operations. For example, process A can write to the data in shared memory and then send a "ready" message into the queue. Process B can receive the msg, read the data, and send an "ok" message back.
 
-Semaphores are an OS support synchronization construct and a binary semaphore can have two states, 0 or 1. When a semaphore has a value of 0, the process will be blocked. If the semaphore has a value of 1, the process will decrement the value (to 0) and will proceed.
+Semaphores are an OS support synchronization construct and a binary semaphore can have two states, 0 or 1. When a semaphore has a value of 0, the process will be blocked. If the semaphore has a value of 1, the process will decrement the value (to 0) and will proceed. This decrement is equivalent to acquiring a lock.
+
+The SysV APIs for message queues and semaphores are similar in form to the SysV shared memory API in how constructs are created, controlled, and closed, and POSIX equivalents exist for both.
+
+<details>
+<summary>Message queue system calls quiz spoiler</summary>
+
+On Linux, the SysV message queue calls are `msgsnd` to send a message, `msgrcv` to receive a message, `msgctl` to perform a control operation, and `msgget` to obtain a message queue identifier.
+</details>
 
 ## IPC Command Line Tools
+Linux provides command line utilities for working with IPC and shared memory. `ipcs` lists all of the IPC facilities in the system, across all IPC types including message queues and semaphores; passing `-m` restricts the output to shared memory. `ipcrm` removes an IPC construct, with `-m` and a shared memory identifier used to remove a shared memory segment. The man pages for both commands list the full set of options.
+
 ![](https://assets.omscs.io/notes/A87134C6-ABEF-4923-B993-8E3C48A4A8E6.png)
 
 ## Design Considerations
@@ -200,10 +214,10 @@ First, consider how many segments the processes will need to communicate.
 
 Will you use one large segment? If so, you will have to implement some kind of management of the shared memory. You will need some manager that will be responsible for allocating and freeing memory in this region.
 
-Alternatively, you can have multiple segments, one for each pairwise communication. If you choose this strategy, it is probably a smart idea to pre-allocate a pool of segments ahead of time, so you don't need to incur the cost of creating a segment in the middle of execution. With this strategy, you will also need to manage how these segments are picked up for use by the pairs. A queue of segment ids is probably sufficient.
+Alternatively, you can have multiple segments, one for each pairwise communication. If you choose this strategy, it is probably a smart idea to pre-allocate a pool of segments ahead of time, so you don't need to incur the cost of creating a segment in the middle of execution. With this strategy, you will also need to manage how these segments are picked up for use by the pairs. A queue of segment ids is probably sufficient. One consequence is that a thread does not know up front which segment it will use for a given communication, so if that matters you can communicate the chosen segment id to the peer through another mechanism such as a message queue.
 
 Second, you will need to think about how large your segments should be.
 
 If the size of the data is known up front (and is static), you can just make all your segments that size. Typically an operating system will have a limit on the maximum segment size, so this strategy only works in very restricted cases.
 
-If you want to support arbitrary messages sizes that are potentially much larger than the segment size, one option is to transfer the data in rounds. The sending process sends the message in chunks, and the receiving process reads in those chunks and saves them somewhere until the entire message is received. In this case, the programmer will need to include some protocol to track the progress of the data movement through the shared memory region.
+If you want to support arbitrary messages sizes that are potentially much larger than the segment size, one option is to transfer the data in rounds. The sending process sends the message in chunks, and the receiving process reads in those chunks and saves them somewhere until the entire message is received. In this case, the programmer will need to include some protocol to track the progress of the data movement through the shared memory region. The shared memory area is typically cast as a data structure holding the data buffer, a synchronization construct, and additional flags to track that progress.
