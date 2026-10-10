@@ -7,6 +7,14 @@ lecture: scheduling
 
 # Scheduling
 
+**Reference paper**: [Chip Multithreading Systems Need a New Operating System Scheduler](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-fedorova-paper.pdf) - Fedorova et al.
+
+**OSTEP chapters**:
+* [7. Scheduling: Introduction](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched.pdf)
+* [8. Scheduling: The Multi-Level Feedback Queue](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-mlfq.pdf)
+* [9. Scheduling: Proportional Share](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-lottery.pdf)
+* [10. Multiprocessor Scheduling (Advanced)](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-multi.pdf)
+
 ## Scheduling Overview
 The CPU scheduler decides how and when the processes (and their threads) access the shared CPUs.  The scheduler concerns the scheduling of both user level tasks and kernel level tasks.
 
@@ -16,7 +24,7 @@ The scheduler selects one of the tasks in the ready queue and then schedules it 
 
 Whenever the CPU becomes idle, we need to run the scheduler. For example, if a task makes an I/O request and is placed on the wait queue for that device, the scheduler has to select a new task from the ready queue to run on the CPU.
 
-A common way that schedulers share time within the system is by giving each task some amount of time on the CPU. This is known as a **timeslice**. When a timeslice expires, the scheduler must be run.
+A common way that schedulers share time within the system is by giving each task some amount of time on the CPU. This is known as a timeslice. When a timeslice expires, the scheduler must be run.
 
 Once the scheduler selects a task to be scheduled, that task is dispatched onto the CPU. The operating system context switches to the new task, enters user mode, sets the program counter, and execution begins.
 
@@ -144,6 +152,8 @@ Let's consider two CPU bound tasks that each take 10 seconds to complete. Let's 
 
 ![](https://assets.omscs.io/notes/7E4262FA-1297-474A-A624-4BBD1B57DA5B.png)
 
+**NB**: The average wait time for the 5 second timeslice is wrong in the lecture graphic, which has a division error. `T1` starts at 0 seconds and `T2` starts at 5.1 seconds, so the average wait is 2.55 seconds and not 3.05 seconds. The course errata lists this correction.
+
 With a smaller timeslice value, we have to pay the time cost of context switching more frequently. This will degrade our throughput and our average completion time. That being said, smaller timeslices mean that tasks are started sooner, so our average wait time is better when we have smaller timeslices.
 
 The user cannot really perceive when a CPU bound task starts, so average wait time is not super important for CPU bound tasks. The user cares when a CPU bound task completes.
@@ -202,6 +212,8 @@ The resulting data structure is called the **multi-level feedback queue**.
 ![](https://assets.omscs.io/notes/1A833C17-905A-46B8-B90B-F5E0803B3B6E.png)
 
 The MLFQ is not just a group of priority queues. There are different scheduling policies associated with each level. Importantly, this data structure provides feedback on a task, and helps the scheduler understand over time which queue a task belongs to given the makeup of tasks in the system.
+
+Fernando Corbató received the Turing Award in part for the multi-level feedback queue and his broader work on timesharing systems. The Solaris scheduler is essentially a multi-level feedback queue with 60 levels and its own set of feedback rules governing how a task is moved up and down those levels.
 
 ## Linux O(1) Scheduler
 The Linux O(1) scheduler gets its name from the fact that it can add/select a task in constant time, regardless of the number of tasks in the system. It is a preemptive, priority-based scheduler, with 140 priority levels. The priority levels are broken into two classes: priorities from 0 to 99 are for real-time tasks, while 100 - 139 are for timesharing tasks.
@@ -331,6 +343,8 @@ This solution seems best. We schedule the CPU-bound thread until the memory-boun
 
 Scheduling a mix of memory/CPU intensive threads allows us to avoid or at least limit the contention on the processor pipeline and helps to ensure utilization across both the CPU and the memory components.
 
+> **Paper (Fedorova):** The paper develops this with a three-system comparison rather than the lecture's two-hardware-thread picture. It contrasts a single-threaded core (A, the lower bound), a multithreaded core (B), and a multiprocessor with one core per thread (C, the upper bound). On a purely CPU-bound workload A and B perform comparably while C is four times faster; on a purely memory-bound workload B and C both beat A by a factor of four, because the multithreaded core overlaps the four threads' memory latencies. The contention argument rests on instruction delay latency: an ALU instruction has 0 delay latency, an L1-cache-hit load has 4 cycles, and a branch delays the next instruction by 2 cycles. The headline result is that a CMT-aware scheduler can improve application performance by as much as a factor of two over a naive one.
+
 Note that we will still experience some degradation due to the interference of these two threads, but it will be minimal relative to the co-scheduling of only memory- or CPU-bound threads.
 
 ## CPU Bound or Memory Bound
@@ -360,9 +374,13 @@ Even though different hardware counters provide different metrics, schedulers ca
 ## Scheduling with Hardware Counters
 Fedorova speculates that a more concrete metric to help determine if a thread is CPU bound or memory bound is **cycles per instruction** (CPI). A memory bound thread will take a lot of cycles to complete an instruction; therefore, it has a high CPI. A CPU bound thread will have a CPI of 1 (or some low number) as it can complete an instruction every cycle (or close to every cycle).
 
+> **Paper (Fedorova):** The paper is less tentative than "speculates" suggests. Section 5 states that mean CPI, "easily determined using hardware counters, gives us a useful window into the dynamic instruction mix of a workload" and "nicely captures average instruction delay." The reasoning runs through single-threaded CPI (the CPI a thread would show on a dedicated processor): a high single-threaded CPI means the thread spends much of its time blocked on memory or long-latency instructions and so has low pipeline resource requirements, while a low CPI means high resource requirements. The lecture's "high CPI implies memory bound" is the same idea stated through the thread's behavior rather than its resource demand.
+
 Given that there is no CPI counter on the processor that Fedorova uses - and computing something like 1 / IPC would require unacceptable software intervention - she uses a simulator.
 
 To explore this question, Fedorova simulates a system that has 4 cores, with each core have a 4-way SMT, for a total of 16 hardware execution contexts.
+
+> **Paper (Fedorova):** The simulated core is not SMT. Section 3 models fine-grained multithreading (Laudon et al.): the core has one set of functional units and interleaves the threads by switching context on every cycle, so at most one instruction issues per cycle and the per-core IPC maxes out at 1. The paper names SMT (multiple sets of functional units, instructions from several threads issued in the same cycle) as the alternative design it deliberately did not take, choosing a simple RISC core to fit more cores on the chip. The lecture labels the whole platform SMT, which the course also treats as a synonym for hyperthreading.
 
 Next, she wants to vary the threads that get assigned to these hardware contexts based on their CPI, so she creates a synthetic workload where her threads have a CPI of 1, 6, 11, and 16. The threads with the CPI of 1 will be the most CPU-intensive, while the threads with the CPI of 16 will be the most memory-intensive. The overall workload mix has four threads of each kind.
 
@@ -381,6 +399,8 @@ In the first two experiments, we have a fairly well balance mix of high- and low
 
 In the last two experiments, each of the cores were assigned tasks with similar - or in the case of the final experiment, identical - CPI values. We can see that in these two cases, the processor pipeline was much more poorly utilized. Threads either spent a lot of time in contention with one another - in the case of CPU bound tasks - or the CPU spent a lot of time idling - in the case of memory-bound tasks. Regardless, our IPC dropped significantly.
 
+> **Paper (Fedorova):** Section 4 gives the magnitudes: schedules (a) and (b) perform twice as well as schedule (d) and 1.5 times better than schedule (c). In the poor schedules the two cores packed with CPI-1 threads are fully utilized while the cores holding the high-CPI (memory-bound) threads contribute almost nothing to aggregate throughput, which is where the lost performance goes.
+
 We can conclude that scheduling tasks with mixed CPI values leads to higher platform utilization.
 
 We have used a synthetic workload in this case, with each task having a CPI that is quite far from other CPI values present in the system. Is this a realistic workload?
@@ -392,5 +412,7 @@ In order to answer this, Fedorova profiled a number of applications from several
 What we can see is that most of the values are quite cluttered together. We do not see the distinct values presented in the synthetic workload. Most CPIs range from 2.5 - 4.5.
 
 Because CPI isn't that different across applications, it may not be the most instructive metric to inform scheduling decisions.
+
+> **Paper (Fedorova):** The paper draws the opposite conclusion from its profiling and never gives a "2.5 to 4.5" range (that figure is from the lecture graphic). Section 5 reports that measured CPI "can vary by an order of magnitude among applications" and that, given recent behavior, "we can predict the near-term CPI of a thread," so "constructing a scheduler that balances load across CPU cores on a CMT processor should be a simple matter of engineering." The paper's own stated limitations are different ones: CPI does not reveal which specific resources (cache hierarchy, floating-point unit) threads contend for, and CPI measured on a busy system is already perturbed by existing contention. The "CPIs cluster, so CPI is not useful" takeaway is the lecture's framing; it aligns with Fedorova's later work (USENIX 2005), which identifies L2 cache contention, not pipeline CPI, as the dominant effect.
 
 ![](https://assets.omscs.io/notes/A260F044-D32B-4ADA-8E2C-AE04AE7F0A92.png)
