@@ -7,6 +7,12 @@ lecture: distributed-file-systems
 
 # Distributed File Systems
 
+**Reference paper**: [Caching in the Sprite Network File System](https://s3.amazonaws.com/content.udacity-data.com/courses/ud923/references/ud923-nelson-paper.pdf) - Nelson, Welch and Ousterhout.
+
+**OSTEP chapters**:
+* [49. Sun's Network File System (NFS)](https://pages.cs.wisc.edu/~remzi/OSTEP/dist-nfs.pdf)
+* [50. The Andrew File System (AFS)](https://pages.cs.wisc.edu/~remzi/OSTEP/dist-afs.pdf)
+
 ## Distributed File Systems
 Modern operating systems export a high-level filesystem interface to abstract all of the (potentially) different types of storage devices present on a machine and unify them under a common API.
 
@@ -44,7 +50,7 @@ At the other extreme, we have the true remote file access. In this model, the fi
 
 The benefit of this extreme is that the server now has full control and knowledge of how the clients are accessing and modifying a file. This makes it easier to ensure that the state of the filesystem is consistent.
 
-The downside of this model is that every file operations pays a network cost. In addition, this model is limited in its scalability. Since every file operation goes to the server, the server will get overloaded more quickly, and will not be able to service as many clients.
+The downside of this model is that every file operations pays a network cost. This cost is incurred even when clients are only reading repeatedly from a read-only file, since the model bypasses any local caching the client could have used. In addition, this model is limited in its scalability. Since every file operation goes to the server, the server will get overloaded more quickly, and will not be able to service as many clients.
 
 ## Remote File Service: A Compromise
 We should allow clients to benefit from using their local memory/disk and to store at least some part of the file they are accessing. This may include downloading blocks of the file they are accessing, as well as prefetching blocks that they may soon be accessing.
@@ -57,7 +63,7 @@ This approach is beneficial because the server continues to have insight into wh
 
 The downside with this compromise is that the server becomes more complex. The server needs to perform additional tasks and maintain additional state to make sure it can provide consistency guarantees. This also means that the client has to understand file sharing semantics that are different from what they are used to in a normal filesystem.
 
-## Stateless vs Stateful File Server
+## Stateless vs. Stateful File Server
 A **stateless** server keeps no state.
 
 It has no notion of:
@@ -121,7 +127,7 @@ With immutable files, you never modify an old file, but rather create a new file
 
 With transactions, the filesystem exports some API to allow clients to group file updates into a single batch to be applied atomically.
 
-## File Vs Directory Service
+## File vs. Directory Service
 Filesystems have two different types of files: regular files and directories. These two types of files often have very different access patterns. As a result, it is not uncommon to adopt one type of semantics for files, and another for directories. For example, we may have session semantics for files, and UNIX semantics for directories.
 
 ## Replication and Partitioning
@@ -154,7 +160,7 @@ In a **Networking File System** (NFS), clients access files across the network, 
 
 Clients request and access files via the VFS, using the same types of file descriptors and operations that they use to access files in their local storage. The VFS layer determines if the file belongs to the local filesystem or whether the request needs to be pushed to the NFS client so that it can be passed to the remote filesystem.
 
-The NFS client interacts with the NFS server via RPC. The NFS server receives the request, forms it into a proper filesystem operation that is delivered to the local VFS. From there, the request is passed to the local file system interface. On the server machine, requests coming from the NFS server look identical to filesystem requests coming from any other application running on the server machine.
+The NFS client interacts with the NFS server via RPC. The NFS server receives the request, forms it into a proper filesystem operation that is delivered to the local VFS. From there, the request is passed to the local filesystem interface. On the server machine, requests coming from the NFS server look identical to filesystem requests coming from any other application running on the server machine.
 
 When an `open` request comes to an NFS server, it will create a file handle. This file handle will contain information about the server machine as well as information about the file. This handle will be returned back to the client machine. Whenever the client wants to access files via NFS, it can pass this handle. If the file is deleted or the server machine dies, this handle becomes stale.
 
@@ -176,14 +182,22 @@ NFSv4 also supports a reader/writer lock called "share reservation". It also sup
 ## Sprite Distributed File System
 ![](https://assets.omscs.io/notes/BF2F3D15-E0CE-4DFE-B0DF-EFF69297E33E.png)
 
+> **Paper (Nelson et al.):** The lecture uses Sprite as a case study in cache consistency, which is one of the paper's two contributions. The other, which the lecture does not cover, is that Sprite's caches vary in size dynamically: the file system and the virtual memory system each manage a pool of physical pages and negotiate over memory by comparing the ages of their oldest pages, so the file cache can grow to occupy most of a client's memory when virtual memory does not need it (Sections 1 and 6). The paper's headline results are about caching's performance payoff, not consistency: client caches let diskless workstations run within 0-12% of workstations with local disks, cut server load by a factor of two or more, and cut network traffic by about a factor of four. See the companion notes for the full catalogue.
+
 ## Sprite DFS Access Pattern Analysis
 In the paper on caching in the sprite system, the authors performed a study to see how files are accessed in the production filesystem used by their department.
 
+> **Paper (Nelson et al.):** The access-pattern numbers the lecture attributes to a study of the authors' own filesystem come from the "BSD study" (Section 3), a separate trace-driven analysis of three time-shared VAX-11/780s running 4.2 BSD UNIX [Ousterhout et al., SOSP 1985]. Sprite's designers reused that trace rather than tracing Sprite itself: the paper's only Sprite-specific use of the trace is a simulation (Tables 1 and 2) that feeds each timesharing user into a simulated client to estimate cache-consistency overhead. A measurement study of Sprite's own production access patterns came later, in Baker et al., "Measurements of a Distributed File System" (SOSP 1991).
+
 They found that 33% of all file accesses are writes. Caching can be an important mechanism to improve performance: 66% of all operations can be improved. In order to leverage the cache for writes as well, a write-through policy is not sufficient.
+
+> **Paper (Nelson et al.):** The paper's figure is "about one-third of all file accesses are writes" (Section 4.3), and the limit it draws is stated as an upper bound: because about a third of accesses are writes, "a caching scheme based on write-through cannot reduce disk or server traffic by more than two-thirds." The two-thirds improvement is a ceiling on what caching can save, not a count of operations that are definitely improved.
 
 Session semantics may have been a good strategy, but the authors also noticed that 75% of files were open less than 0.5 seconds and 90% of files were open less than 10 seconds. This means that the overheads associated with session semantics were still too high.
 
 They also observed that 20-30% of new data was deleted within 30 seconds, with 50% of new data being deleted within 5 minutes. The also observed that file sharing in their system is rare. As a result, the authors decided that write-back on close was not really necessary.
+
+> **Paper (Nelson et al.):** The paper rejects write-on-close with the same open-duration numbers (Section 4.3) but frames file sharing differently. "Rare" sharing is the paper's expectation about Sprite's own write-sharing, used to justify optimizing the consistency algorithm for the no-sharing case (Section 5); the deletion and open-duration statistics are the BSD study's, and the paper never claims the BSD trace measured how often files were shared. The paper's own write-sharing evidence is the simulation in Section 5.3: of all write traffic, 4041 blocks were written through for concurrent write-sharing and 6887 flushed for sequential write-sharing, and consistency accounted for about one-fourth of server traffic.
 
 Of course, the authors needed to support concurrent access even though they didn't need to optimize for it.
 
@@ -196,11 +210,17 @@ The intuition behind this is that blocks that have been more recently modified w
 
 Note that this 30 second threshold is directly related to authors' observation that 20-30% of new data was deleted within 30 seconds.
 
+> **Paper (Nelson et al.):** The paper does not derive the 30-second interval from the 30-second deletion figure. It adopts "a delayed-write policy similar to the one used in UNIX: every 30 seconds, all dirty blocks that haven't been modified in the last 30 seconds are written back" (Section 4.3), which is the standard 4.2 BSD interval rather than a number tuned to the trace. A block written on a client reaches the server's cache in 30-60 seconds and the disk 30-60 seconds after that. The deletion statistics motivate delayed writes in general: the paper notes that because 20-30% of new data dies within 30 seconds and 50% within 5 minutes, "a policy that delays writes several minutes can substantially reduce the traffic", and it says it plans to experiment with longer intervals. So the trace argues for a longer delay than 30 seconds, not for 30 specifically.
+
 When a client comes along and wants to open a file that is being written by another client, the server will contact the writer and collect all of the outstanding dirty blocks.
 
 Every open operation has to go to the server. This means that directories cannot be cached on the client.
 
+> **Paper (Nelson et al.):** Routing every open through the server is a deliberate design choice with a known cost, not just a consequence of the write-back scheme. The consistency algorithm "depends on the fact that the server is notified whenever one of its files is opened or closed, so it can detect when concurrent write-sharing is about to occur," and this "prohibits performance optimizations (such as name caching) that allow clients to open files without contacting the files' servers" (Section 5). Andrew made the opposite choice, using server callbacks so clients can open cached files without contacting the server. The paper estimates (Table 8, Section 8) that adding Andrew-style name caching and callback to Sprite would improve client-visible speed by only a few percent but cut server and network utilization by as much as one-third, potentially letting one server support 50% more clients.
+
 Finally, caching is completely disabled on concurrent writes. In this case, all of the writes will be serialized on the server-side. Because concurrent writes  do not happen frequently, this cost will not be significant.
+
+> **Paper (Nelson et al.):** The paper specifies two actions the server takes when it detects concurrent write-sharing during an open (Section 5.1). First, it tells the one client that has the file open for writing, if any, to write all its dirty blocks back; there can be at most one such client. Second, it tells all clients that currently have the file open that the file is no longer cacheable, so they drop its blocks from their caches and send future accesses to the server. Clients that are not currently open but still hold stale blocks are not notified; they take consistency actions the next time they open the file. Disabling is per file and only while sharing is concurrent, and for simplicity Sprite does not re-enable caching for a file that is still open once it becomes cacheable again. The lecture's "when a writer closes the file the server makes it cacheable again" captures the common case; the paper's rule is narrower.
 
 ## File Access Operations in Sprite
 Assume that we have multiple clients that are accessing a file for reading, and one writer client.
@@ -229,6 +249,8 @@ Let's assume that a new writer comes along after the first writer has closed the
 In this case, the server contacts the old writer to gather all of the dirty blocks, which is convenient given that the client keeps track of all dirty blocks.
 
 If the old writer has closed the file, the server will update the value of the writer it holds to point to the new writer. At this point, the new writer can proceed and cache the file.
+
+> **Paper (Nelson et al.):** The paper splits sequential write-sharing into two separate problems with two separate mechanisms (Section 5.2). The first is that the opening client may hold out-of-date blocks in its own cache; this is solved by version numbers. The server keeps a version number per file and increments it each time the file is opened for writing; a client stores the version of every file it caches and, on open, flushes its cached copy if its version differs from the server's. The second problem is that the current data may still sit in some other client's cache, because the last writer need not have flushed on close; this is solved by the server tracking the last writer and, on a new open by a different client, telling that last writer to flush its dirty blocks through to the server before the opener reads. The lecture's "contact the old writer and gather dirty blocks" is the second mechanism; the version number does the first, so the two are not the same check.
 
 Let's assume that a third writer comes along and wants to write to the file concurrently with the current writer. This is concurrent sharing.
 
