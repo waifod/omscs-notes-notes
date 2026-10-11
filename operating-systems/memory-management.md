@@ -117,7 +117,7 @@ On a 32-bit architecture, where each memory address is represented by 32 bits, e
 
 In a 32-bit architecture we have 2^32 bytes (4GB) of addressable memory. A common page size is 4KB.  In order to represent 4GB of memory in 4KB pages, we need 2^32 / 2^12  = 2^20 entries in our page table. Since each entry is 4 bytes long, we need 2^22 bytes of memory (4MB) to represent our page table.
 
-If we had a 64-bit architecture, we would need to represent 2^64 bytes of physical memory in chunks of 2^12 bytes. Since each entry is now 8 bytes long, we need 2^3 * 2^64 / 2^12 = 32PB!
+If we had a 64-bit architecture, we would need to represent 2^64 bytes of virtual memory in chunks of 2^12 bytes. Since each entry is now 8 bytes long, we need 2^3 * 2^64 / 2^12 = 32PB!
 
 Remember that page tables are a *per-process* allocation.
 
@@ -148,7 +148,7 @@ In this particular scenario, the address format is such that the outer index occ
 
 This means that a given page table can contain 2^10 entries (p2), and each entry can address 2^10 bytes of physical memory (d). Loosely, we can think about the page table pointing to 2^10 "rows" of physical memory, with each row having 2^10 "cells". P2 gives us the memory "row", and d gives us the "cell" within that "row". This means that each page table can address 1MB of memory.
 
-Whenever there is a gap in virtual memory that is 1MB (or greater), we don't need to fill in the gap with (unused) page tables. For example, if we have a page table containing pages 0-999, and we allocate another page table containing pages 30000-30999, we don't need to allocate the 29 page tables in between. This will reduce the overall size of the page table(s) that are required for a particular process. This is in contrast to the "flat" page table, in which every entry needs to be able to translate every single virtual address and it has entries for every virtual page number. There can't be any gaps in a flat page table.
+Whenever there is a gap in virtual memory that is 1MB (or greater), we don't need to fill in the gap with (unused) page tables. For example, if we have a page table containing pages 0-999, and we allocate another page table containing pages 30000-30999, we don't need to allocate the 28 page tables in between. This will reduce the overall size of the page table(s) that are required for a particular process. This is in contrast to the "flat" page table, in which every entry needs to be able to translate every single virtual address and it has entries for every virtual page number. There can't be any gaps in a flat page table.
 
 The hierarchical page table can be extended to use even more layers. We can have a third level that contains pointers to page table directories. We can add a fourth level, which would be a map of page table directory pointers.
 
@@ -285,7 +285,7 @@ This buddy checking step can continue up the tree, aggregating as much as possib
 
 The reason that the chunks are powers of two is so that the addresses of budding only differs by one bit. For example, if my buddy and I are both 4 units long, and my starting address is 0x000, my buddy's starting address will be 0x100. This helps make computation easier.
 
-Because the buddy allocator has granularity of powers of two, there will be some internal fragmentation using the buddy allocator. This is a problem because there are a lot of data structures in the Linux kernel that are not close to powers of 2 in size. For example, the task struct used to represent processes/threads is 1.7Kb.
+Because the buddy allocator has granularity of powers of two, there will be some internal fragmentation using the buddy allocator. This is a problem because there are a lot of data structures in the Linux kernel that are not close to powers of 2 in size. For example, the task struct used to represent processes/threads is 1.7KB.
 
 Thankfully, we can leverage the **slab allocator**. The slab allocator builds custom object caches on top of slabs. The slabs themselves represent contiguously allocated physical memory. When the kernel starts it will pre-create caches for different objects, like the task struct. Then, when an allocation request occurs, it will go straight to the cache and it will use one of the elements in the cache. If none of the entries is available, the kernel will allocate another slab, and it will pre-allocate another portion of contiguous memory to be managed by the slab allocator.
 

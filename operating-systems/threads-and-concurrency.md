@@ -95,7 +95,7 @@ We need some data structure to represent a thread. The information we need to de
 
 To create a thread, think of a `fork` (not the UNIX fork) call which takes two arguments - the `proc` to run when the thread is created, and the `args` to pass to `proc`.
 
-When one thread calls `fork` a new thread is created, with a new data structure and its program counter pointing to the first argument of `proc`.
+When one thread calls `fork` a new thread is created, with a new data structure and its program counter pointing to the first instruction of `proc`.
 
 After the fork completes, the process now has two threads both of which can execute concurrently.
 

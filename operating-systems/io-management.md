@@ -265,7 +265,7 @@ The file shown above has 5 blocks allocated to it. If we need more storage for t
 
 The benefit of this approach is that it is easy to perform both sequential and random accesses to the file.
 
-The downside of this approach is that there is a limit on the file size for files that can be indexed using this data structure. For example, if we have a 128B inode containing 4B block pointers, we can only address 32 blocks. If each block can store 1Kb of information, our file size limit is 32Kb, which is too restrictive.
+The downside of this approach is that there is a limit on the file size for files that can be indexed using this data structure. For example, if we have a 128B inode containing 4B block pointers, we can only address 32 blocks. If each block can store 1KB of information, our file size limit is 32KB, which is too restrictive.
 
 ## inodes with Indirect Pointers
  One way to solve the issue of file size limits is to use **indirect pointers**.

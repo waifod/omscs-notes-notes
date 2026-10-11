@@ -390,7 +390,7 @@ There are two types of signals.
 ## Interrupts as Threads
 To avoid the deadlock situation we covered before with regards to handler code trying to lock a mutex that the thread had already locked, perhaps it makes sense to have handler code exist in its own thread. This is the approach described in the SunOS paper.
 
-> **Paper (Eykholt et al.):** SunOS 5.0 does this for most interrupts; interrupts above a tunable "thread level", typically the level of the scheduling clock, are not handled as threads and can synchronize only through spin mutexes and software interrupts.
+> **Paper (Eykholt et al.):** SunOS 5.0 does this for most interrupts; interrupts above a tunable "thread level" are not handled as threads and can synchronize only through spin mutexes and software interrupts. Thread level is normally the maximum priority; it is lowered, typically to the interrupt level of the scheduling clock, only where firmware cannot tolerate the short dispatcher lockout.
 
 This way, when the handler thread tries to acquire the mutex, it will block just like any other thread instead of deadlocking. The handler thread and its context are placed on the wait queue associated with the mutex, and the original thread is scheduled back on the CPU. Eventually, the original thread unlocks the mutex, the handler thread is dequeued, and the handling routine completes.
 

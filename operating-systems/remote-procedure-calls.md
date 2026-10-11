@@ -274,7 +274,7 @@ Once we have this, the developer can just call the function.
 By default, `rpcgen` generates code that is not thread safe. To generate thread safe code use:
 
 ```bash
-rpc_gen -C -M <interface>.x
+rpcgen -C -M <interface>.x
 ```
 
 The `-M` flag doesn't actually give a multithreaded server, rather it ensures that the code produces will be thread safe.

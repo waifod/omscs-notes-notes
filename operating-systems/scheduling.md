@@ -234,7 +234,7 @@ The active list is the primary one that the scheduler uses to select the next ta
 
 If a task yields the CPU to wait on an event or is preempted due to a higher priority task becoming runnable, the time it has spent on the CPU is compared to the timeslice. If it is less than the timeslice, the task is placed back on the active queue for that priority level.
 
-Only after the entire timeslice has been exhausted will the task move to the expired array. The expired array contains the inactive tasks. This means that the scheduler will not schedule tasks from this array while there are still tasks in the active array. Once there are no more tasks in the active array, the empty and the active array will be swapped.
+Only after the entire timeslice has been exhausted will the task move to the expired array. The expired array contains the inactive tasks. This means that the scheduler will not schedule tasks from this array while there are still tasks in the active array. Once there are no more tasks in the active array, the active and the expired arrays will be swapped.
 
 This sheds a little bit of light as to why the lowest priority tasks have the smallest timeslices. Remember, we had originally thought to give the lowest priority, CPU intensive tasks the largest timeslices. In this case, however, giving the lowest priority tasks the smallest timeslices ensures that low priority tasks - which only run after all higher priority tasks expire - do not block the higher priority tasks for too long. The lower priority tasks get their small window to accomplish their work, and then quickly yield back to more important tasks.
 
@@ -399,7 +399,7 @@ In the first two experiments, we have a fairly well balance mix of high- and low
 
 In the last two experiments, each of the cores were assigned tasks with similar - or in the case of the final experiment, identical - CPI values. We can see that in these two cases, the processor pipeline was much more poorly utilized. Threads either spent a lot of time in contention with one another - in the case of CPU bound tasks - or the CPU spent a lot of time idling - in the case of memory-bound tasks. Regardless, our IPC dropped significantly.
 
-> **Paper (Fedorova):** Section 4 gives the magnitudes: schedules (a) and (b) perform twice as well as schedule (d) and 1.5 times better than schedule (c). In the poor schedules the two cores packed with CPI-1 threads are fully utilized while the cores holding the high-CPI (memory-bound) threads contribute almost nothing to aggregate throughput, which is where the lost performance goes.
+> **Paper (Fedorova):** Section 5 gives the magnitudes: schedules (a) and (b) perform twice as well as schedule (d) and 1.5 times better than schedule (c). In the poor schedules the two cores packed with CPI-1 threads are fully utilized while the cores holding the high-CPI (memory-bound) threads contribute almost nothing to aggregate throughput, which is where the lost performance goes.
 
 We can conclude that scheduling tasks with mixed CPI values leads to higher platform utilization.
 

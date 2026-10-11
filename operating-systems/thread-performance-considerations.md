@@ -18,9 +18,9 @@ Let's compare the following two models to see which one is better
 
 ![](https://assets.omscs.io/notes/6599CE4C-F1E1-4AA1-A546-F2667436BE59.png)
 
-Both models have six workers and both process an order of 11 toys. In the boss/workers model, a worker takes 120ms to process one toy order. In the pipeline model, each of the six pipeline stages takes 20ms, so one order still takes 120ms to travel the whole pipeline.
+Both models have six threads (boss/workers: 1 boss + 5 workers; pipeline: 6 stage threads) and both process an order of 11 toys. In the boss/workers model, a worker takes 120ms to process one toy order. In the pipeline model, each of the six pipeline stages takes 20ms, so one order still takes 120ms to travel the whole pipeline.
 
-Regarding execution time, the boss/workers model took 360ms to complete 11 toy orders with 6 workers, while the pipeline model took 320ms with the same constraints.  From the perspective of total execution time, the pipeline model performs better than the boss/workers model.
+Regarding execution time, the boss/workers model took 360ms to complete 11 toy orders with 6 threads, while the pipeline model took 320ms with the same constraints.  From the perspective of total execution time, the pipeline model performs better than the boss/workers model.
 
 What about average time to complete an order?
 
@@ -46,7 +46,7 @@ average_time_per_order =  total_time / total_orders
 # average_time_per_order == 220ms
 ```
 
-If execution time is important, pick the pipeline model. Rather, if we care about the average time to complete the order, the boss/workers model is better: 196ms against 220ms, for the same workload and the same number of workers.
+If execution time is important, pick the pipeline model. Rather, if we care about the average time to complete the order, the boss/workers model is better: 196ms against 220ms, for the same workload and the same number of threads.
 
 Change the number of workers or the number of orders and you may draw the opposite conclusion. The toy shop manager wants to complete as many orders as possible in a fixed amount of time, so he picks the pipeline model. The customers of the toy shop prefer the boss/workers model, because their individual orders come back sooner.
 

@@ -279,7 +279,7 @@ With sequential consistency, it's not important that we see updates immediately.
 
 ![](https://assets.omscs.io/notes/2FAC54FC-883E-45B2-88D6-94843AC1F9F1.png)
 
-In the above, example, it is possible to see X and m1 and then see Y at m2. It is also possible to see 0 at m1 and then Y at m2. It is not illegal to see Y at m2 and then 0 at m1, as the write to m1 happened before the write to m2.
+In the above, example, it is possible to see X and m1 and then see Y at m2. It is also possible to see 0 at m1 and then Y at m2. It is illegal to see Y at m2 and then 0 at m1, as the write to m1 happened before the write to m2.
 
 According to sequential consistency, the memory updates from different processors may be arbitrarily interleaved.
 
