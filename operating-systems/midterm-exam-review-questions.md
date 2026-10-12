@@ -57,7 +57,7 @@ A great example from the SunOS paper (Eykholt et al.) is the use of threads for 
 
 > The additional overhead in taking an interrupt is about 40 SPARC instructions. The savings in the mutex enter/exit path is about 12 instructions. However, mutex operations are much more frequent than interrupts, so there is a net gain in time cost, as long as interrupts don't block too frequently.
 
-The 40-instruction cost per interrupt is paid infrequently. It is the overhead of taking an interrupt on a preallocated interrupt thread, not of creating a thread (Lecture framing: 40 instructions for the checks and, if necessary, creating a separate thread). The 12-instruction saving per mutex operation is collected on every lock/unlock. Because mutex operations vastly outnumber interrupts, the net instruction count decreases. The common case is optimized a second time inside the mechanism: the expensive work of turning an interrupt into a full, schedulable thread is done only when the interrupt handler actually blocks on lock contention.
+The 40-instruction cost per interrupt is paid infrequently (Lecture framing: 40 instructions for the checks and, if necessary, creating a separate thread; Paper, Eykholt et al.: it is the overhead of taking an interrupt on a preallocated interrupt thread, not of creating a thread). The 12-instruction saving per mutex operation is collected on every lock/unlock. Because mutex operations vastly outnumber interrupts, the net instruction count decreases. (Paper, Eykholt et al.: the common case is optimized a second time inside the mechanism: the expensive work of turning an interrupt into a full, schedulable thread is done only when the interrupt handler actually blocks on lock contention.)
 
 The Stein & Shah threads library applies the same principle to signal masks: updating a thread's signal mask (frequent) is a cheap user-level operation with no system call, while actually handling a signal (rare) may cost extra system calls to fix up the kernel-level mask.
 
@@ -71,7 +71,7 @@ During a user-kernel mode crossing:
 2. A context switch occurs: the CPU must save the state of the current user-level execution context (registers, program counter) and load the kernel's execution context.
 3. This context switch takes CPU cycles, which is real overhead.
 4. The kernel brings its own content into the hardware cache, potentially displacing some or all of the application's cached data. The application's cache goes from **hot** to **cold**. Subsequent memory accesses by the application (when control returns) will initially come from main memory rather than cache, which is slow.
-5. On a 2 GHz Linux box, user/kernel transitions take on the order of ~100 ns, and cache effects can impose up to ~100x performance impact on subsequent actions.
+5. On a 2 GHz Linux box, user/kernel transitions take on the order of 50 to 100 ns, and cache hits take a few cycles while main-memory accesses take hundreds of cycles, so a cold cache slows subsequent accesses.
 
 ### 6. What are some of the reasons why user-kernel mode crossing happens?
 
@@ -126,19 +126,19 @@ In **synchronous mode**, the process waits until the system call completes. Asyn
 | **Size**           | Large memory footprint                        | Smaller footprint; load only what is needed      | Smallest kernel footprint                          |
 | **Customization**  | No customization                              | Highly customizable                              | Customized per hardware/use case                   |
 | **Optimization**   | Inlining, compile-time optimizations possible | Indirection may reduce some optimization (minor) | Limited optimization due to IPC overhead           |
-| **Portability**    | Not very portable or manageable               | Good portability and maintainability             | Poor portability (often hardware-specific)         |
+| **Portability**    | Not discussed in lecture                      | Not discussed in lecture                         | Poor portability (often hardware-specific)         |
 | **Performance**    | Can be fast (no IPC overhead)                 | Good; minor overhead from indirection            | Expensive frequent user/kernel crossings via IPC   |
 | **Maintenance**    | Difficult to manage due to size               | Good, but runtime module mixing can cause issues | Hard to find common components for specialized use |
-| **Verifiability**  | Difficult (too large)                         | Moderate                                         | Excellent (small, great for embedded devices)      |
+| **Verifiability**  | Difficult (too large)                         | Moderate                                         | Excellent (small; valuable where correctness is critical, e.g. some embedded devices or control systems) |
 
 **Monolithic Pros:** Everything included; inlining and compile-time optimizations are possible because all code is in one compilation unit.
-**Monolithic Cons:** No customization; not portable; large memory footprint hurts performance.
+**Monolithic Cons:** Too much state and code, hard to maintain, debug and upgrade; large memory requirements, which can impact performance.
 
 **Modular Pros:** Maintainability; smaller footprint; less resource usage; modules can be added/removed dynamically.
 **Modular Cons:** Indirection from modularity can slightly reduce optimization opportunities; maintenance issues when modules from different codebases are loaded together at runtime.
 
-**Microkernel Pros:** Small size; verifiability (great for embedded devices where correctness is paramount).
-**Microkernel Cons:** Poor portability (often customized to underlying hardware); harder to find common OS components; expensive user/kernel crossings because traditional OS components (file systems, device drivers) run at user level and must communicate with the kernel via IPC.
+**Microkernel Pros:** Small size; verifiability (valuable where correct behavior is critical, like some embedded devices or certain control systems).
+**Microkernel Cons:** Poor portability (often customized to underlying hardware); harder to find common OS components due to specialized use case, leading to software complexity; expensive user/kernel crossings because traditional OS components (file systems, device drivers) run at user level and must communicate with the kernel via IPC.
 
 ## Part 2: Threads, Concurrency, IPC, and Flash
 
@@ -155,7 +155,7 @@ In **synchronous mode**, the process waits until the system call completes. Asyn
 | State private          | Everything (code, data, heap, stack, registers)      | Stack, registers, program counter, thread-local storage  |
 | Creation cost          | Expensive (new address space, PCB)                   | Cheaper (share address space, smaller data structure)    |
 | Memory footprint       | Large (duplicate address space)                      | Small (shared address space)                             |
-| Communication          | IPC (message passing, shared memory) - expensive     | Shared variables in same address space - cheap           |
+| Communication          | IPC (message passing, shared memory); expensive      | Shared variables in same address space; cheap            |
 | Context switch cost    | Expensive (direct + indirect costs)                  | Cheaper (less state to swap, better cache behavior)      |
 
 **Process context switch:**
@@ -163,13 +163,13 @@ In **synchronous mode**, the process waits until the system call completes. Asyn
 1. Save the entire PCB (registers, program counter, stack pointer, memory mappings) of the outgoing process.
 2. Load the entire PCB of the incoming process.
 3. **Direct cost:** CPU cycles to store and load PCBs to/from memory.
-4. **Indirect cost:** The hardware cache goes from hot to cold. The incoming process's data is not in cache, so subsequent memory accesses are slow (hundreds of cycles for main memory vs. single-digit cycles for cache).
+4. **Indirect cost:** The hardware cache goes from hot to cold. The incoming process's data is not in cache, so subsequent memory accesses are slow (hundreds of cycles for main memory vs. a few cycles for cache).
 
 **Thread context switch:**
 
 1. Save the execution context (registers, program counter, stack pointer) of the outgoing thread.
 2. Load the execution context of the incoming thread.
-3. Since threads share the same address space, the virtual-to-physical memory mappings do **not** need to be swapped. This is the most expensive part of a process context switch.
+3. Since threads share the same address space, the virtual-to-physical memory mappings do **not** need to be swapped. This is one of the most time-consuming parts of a process context switch.
 4. The cache is more likely to remain warm because threads share code, data, and heap. The incoming thread may benefit from the cache that was populated by the outgoing thread (better locality).
 
 ### 11. Describe the states in a lifetime of a process?
@@ -200,7 +200,7 @@ In **synchronous mode**, the process waits until the system call completes. Asyn
 
 3. **Joined/Exited:** At the end of its life, a joinable thread can be joined back into its parent via `join`. Through this join, the thread conveys the result of its work back to the parent. Detachable threads cannot be joined; they simply exit.
 
-4. **Zombie:** A zombie thread is one that has completed its work but whose data structures have not yet been reclaimed. Periodically, a special **reaper** thread cleans up these zombie threads. (Lecture framing: if a new thread is requested before a zombie is reaped, the zombie's data structures can be reused, saving allocation cost; the paper (Stein & Shah) says the reaper frees exited threads' stacks into a cache of thread stacks, which is what speeds up creation, and that only detached threads go on deathrow, while undetached ones are reaped by `thr_join()`.)
+4. **Zombie:** A zombie thread is one that has completed its work but whose data structures have not yet been reclaimed. Exited threads are placed on **death row**, and periodically a special **reaper** thread garbage-collects their data structures. (Lecture framing: if a new thread is requested before a thread on death row is reaped, its data structures can be reused, saving allocation cost; Paper, Stein & Shah: the reaper frees exited threads' stacks into a cache of thread stacks, which is what speeds up creation; only detached threads go on deathrow, while undetached ones are reaped by `thr_join()`.)
 
 ### 13. Describe all the steps which take place for a process to transition from a waiting (blocked) state to a running (executing on the CPU) state.
 
@@ -333,14 +333,16 @@ The pipeline's throughput is limited by the **slowest stage** (the bottleneck).
 - **Bottleneck stage:** The overall throughput is constrained by the slowest stage. Even if all other stages are fast, one slow stage dominates.
 - **Response time penalty:** A single task must pass through all stages sequentially. If there are many stages or some stages have wait times, the end-to-end latency for a single task can be higher than in the boss-worker model.
 
-**Comparison with boss-workers (from the lecture toy example):**
+**Comparison with boss-workers (P2L2 multithreading-patterns quiz; the ~196ms / ~220ms averages are from P2L5, video 188):**
 
-In the lecture's toy example with 11 orders and 6 execution contexts:
+With 6 execution contexts (boss-workers: 1 boss + 5 workers, 120ms per order; pipeline: 6 stages of 20ms each):
 
-- Boss-workers: total time ~360ms, average time per order ~196ms.
-- Pipeline: total time ~320ms, average time per order ~220ms.
+- With 10 orders: boss-workers ~240ms total, pipeline ~300ms total (boss-workers wins).
+- With 11 orders:
+  - Boss-workers: total time ~360ms, average time per order ~196ms.
+  - Pipeline: total time ~320ms, average time per order ~220ms.
 
-The pipeline completes all work faster (lower total execution time), but the boss-workers model delivers a better average per-order response time. Which model is "better" depends on which metric matters.
+Which model finishes first depends on the input. With 11 orders, the pipeline completes all work faster (lower total execution time), but the boss-workers model delivers a better average per-order response time. Which model is "better" depends on which metric matters.
 
 ### 18. What are mutexes? What are condition variables? Can you quickly write the steps/code for entering/exiting a critical section for problems such as reader/writer, reader/writer with selective priority? What are spurious wake-ups, how do you avoid them, and can you always avoid them? Do you understand the need for using a while() loop for the predicate check in the critical section entry code examples in the lessons?
 
@@ -350,7 +352,7 @@ A **mutex** (mutual exclusion lock) is a synchronization construct that ensures 
 
 #### Condition Variables
 
-A **condition variable** is used in conjunction with a mutex to control concurrent execution based on arbitrary conditions (beyond the binary locked/unlocked of a mutex). A thread can **wait** on a condition variable (atomically releasing the associated mutex and sleeping), and another thread can **signal** (wake at least one waiting thread, possibly more, per Birrell; lecture framing: wake one waiting thread) or **broadcast** (wake all waiting threads) on the condition variable. When a waiting thread is woken, it automatically reacquires the mutex before returning from the wait call.
+A **condition variable** is used in conjunction with a mutex to control concurrent execution based on arbitrary conditions (beyond the binary locked/unlocked of a mutex). A thread can **wait** on a condition variable (atomically releasing the associated mutex and sleeping), and another thread can **signal** (Lecture framing: wake one waiting thread; Paper, Birrell: wake at least one waiting thread, possibly more) or **broadcast** (wake all waiting threads) on the condition variable. When a waiting thread is woken, it automatically reacquires the mutex before returning from the wait call.
 
 #### Reader/Writer Solution
 
@@ -396,7 +398,7 @@ cond_signal(&write_phase);         // wake one waiting writer
 mutex_unlock(&counter_mutex);
 ```
 
-Note: `broadcast` for readers because multiple readers can proceed simultaneously. `signal` for writers because only one writer can proceed at a time. The scheduler ultimately decides whether a reader or writer is woken first. (Lecture framing: the exiting writer wakes both classes; the paper (Birrell) says it should wake only one class: broadcast to readers if any are waiting, otherwise signal one writer. Waking both is correct but wakes threads that cannot proceed.)
+Note: `broadcast` for readers because multiple readers can proceed simultaneously. `signal` for writers because only one writer can proceed at a time. The scheduler ultimately decides whether a reader or writer is woken first. (Lecture framing: the exiting writer wakes both classes; Paper, Birrell: it should wake only one class: broadcast to readers if any are waiting, otherwise signal one writer. Waking both is correct but wakes threads that cannot proceed.)
 
 #### Reader Priority Variant
 
@@ -444,9 +446,9 @@ Spurious wake-ups do not affect correctness (the `while` loop re-checks the cond
 
 **How to avoid them:** Place the `signal`/`broadcast` call **after** unlocking the mutex, so that woken threads can immediately acquire the mutex and proceed.
 
-**Can you always avoid them?** No. If the decision to signal depends on some property of shared state, that property must be checked while holding the mutex, which means the signal may need to happen inside the locked region. (Lecture framing: the signal then stays inside the mutex; the paper (Birrell) says only the test needs the mutex: record it in a local flag inside the lock, e.g. `do_signal = (resource_counter == 0)`, and signal after unlocking.)
+**Can you always avoid them?** No. If the decision to signal depends on some property of shared state, that property must be checked while holding the mutex, which means the signal may need to happen inside the locked region. (Lecture framing: the signal then stays inside the mutex; Paper, Birrell: only the test needs the mutex: record it in a local flag inside the lock, e.g. `do_signal = (resource_counter == 0)`, and signal after unlocking.)
 
-Birrell's paper separates two related costs: **spurious wake-ups** (waking threads that cannot make progress, e.g. using `broadcast` where `signal` suffices, or having readers and writers wait on one condition variable; fixed by using separate condition variables) and **spurious lock conflicts** (signaling while holding the mutex, so the woken thread immediately blocks on the mutex; fixed by signaling after unlock). The lecture uses "spurious wake-up" for the second case.
+(Paper, Birrell: two related costs are separated. **Spurious wake-ups** wake threads that cannot make progress, e.g. by using `broadcast` where `signal` suffices or by having readers and writers wait on one condition variable; they are fixed by using separate condition variables. **Spurious lock conflicts** come from signaling while holding the mutex, so the woken thread immediately blocks on the mutex; they are fixed by signaling after unlock.) The lecture uses "spurious wake-up" for the second case.
 
 #### Why use a while() loop?
 
@@ -457,7 +459,7 @@ When `cond_wait` returns, two things happen as logically independent steps:
 
 Between these two steps, another thread may acquire the mutex and change the shared state. Therefore, when the woken thread finally reacquires the mutex, the condition it was waiting on may no longer be true. The `while` loop re-checks the predicate to guard against this scenario. Using `if` instead of `while` would be incorrect because it would not re-check.
 
-Birrell gives two further reasons: some implementations of `signal` may (rarely) wake more than one thread, and the `while` pattern makes correctness verifiable by local inspection. Extra wake-ups become a performance issue only, not a correctness one.
+(Paper, Birrell: two further reasons: some implementations of `signal` may, rarely, wake more than one thread, and the `while` pattern makes correctness verifiable by local inspection. Extra wake-ups become a performance issue only, not a correctness one.)
 
 ### 19. What's a simple way to prevent deadlocks? Why?
 
@@ -471,7 +473,7 @@ Other approaches:
 - **Deadlock detection and recovery.** Analyze the wait graph for cycles, then roll back one thread. Expensive.
 - **Ostrich algorithm.** Do nothing and hope deadlocks don't occur. If they do, reboot.
 
-Note also that a thread can deadlock with **itself** if it tries to acquire a mutex it already holds (non-recursive mutex). Birrell calls this the simplest case of deadlock. Lock ordering (a partial order on mutex acquisition) completely prevents deadlocks involving only mutexes; deadlocks through condition variables (e.g., waiting for a resource while holding another) are prevented the same way, by imposing a partial order on the resources.
+(Paper, Birrell: a thread can also deadlock with **itself** if it tries to acquire a mutex it already holds, with a non-recursive mutex; this is the simplest case of deadlock.) Lock ordering (a partial order on mutex acquisition) completely prevents deadlocks involving only mutexes. (Paper, Birrell: deadlocks through condition variables, e.g. waiting for a resource while holding another, are prevented the same way, by imposing a partial order on the resources.)
 
 ### 20. Can you explain the relationship among kernel vs. user-level threads? Think through a general mxn scenario (as described in the Solaris papers), and in the current Linux model. What happens during scheduling, synchronization and signaling in these cases?
 
@@ -482,19 +484,19 @@ Note also that a thread can deadlock with **itself** if it tries to acquire a mu
 In Linux's **Native POSIX Threads Library (NPTL)**, there is one kernel-level task (`struct task_struct`) for every user-level thread. This is the **1:1 model**.
 
 - **Scheduling:** The kernel sees every thread and schedules them directly. The kernel scheduler has full visibility.
-- **Synchronization:** Synchronization primitives (mutexes, condition variables) can be implemented either at user level (fast path, no system call when uncontended) or with kernel support for blocking (futexes).
+- **Synchronization:** The kernel sees every thread, including whether it is blocked on synchronization. (Beyond the lecture: in Linux, mutexes and condition variables are built on futexes, with a user-level fast path that needs no system call when uncontended and kernel support for blocking.)
 - **Signaling:** Signals are delivered to specific kernel-level tasks. Since there's a 1:1 mapping, the kernel can deliver signals directly to the correct thread. Signal masks are maintained per task.
 
 **Pros:** Kernel has full insight into the application's threading; blocking one thread does not block the whole process; direct kernel scheduling support.
-**Cons:** Every thread operation (create, synchronize when contended) incurs a system call cost.
+**Cons:** Every thread operation (create, synchronize) incurs a system call cost.
 
 #### Many-to-Many Model (Solaris / SunOS)
 
-In the Solaris model, **m** user-level threads are mapped onto **n** kernel-level threads, where m >= n. The kernel provides lightweight processes (LWPs) to the process. Each LWP is associated with a kernel thread and has its own registers, signal mask, and kernel-supported attributes (scheduling class, virtual-time timers, alternate signal stack, profiling buffer). From the user-level library's perspective, LWPs are the "virtual CPUs" onto which user threads are scheduled. A user thread can also be permanently **bound** to an LWP (e.g., for real-time scheduling); unbound threads are multiplexed over a pool of LWPs. (Lecture framing: a hybrid of many-to-one and one-to-one, with unbound threads mapped many-to-one onto a kernel thread and bound threads one-to-one.)
+In the Solaris model, **m** user-level threads are mapped onto **n** kernel-level threads, where m >= n. The kernel provides lightweight processes (LWPs) to the process. Each LWP is associated with a kernel thread and has its own registers and signal mask (Paper, Stein & Shah: plus kernel-supported attributes threads lack: scheduling class, virtual-time timers, alternate signal stack, profiling buffer). From the user-level library's perspective, LWPs are the "virtual CPUs" onto which user threads are scheduled. A user thread can also be permanently **bound** to an LWP (e.g., for better priority or responsiveness to kernel events). (Paper, Stein & Shah: unbound threads are multiplexed over a pool of LWPs.) (Lecture framing: a hybrid of many-to-one and one-to-one, with unbound threads mapped many-to-one onto a kernel thread and bound threads one-to-one.)
 
-- **Scheduling:** Two levels. The user-level library schedules unbound ULTs onto LWPs from the pool, using priority-ordered run queues (process scope). The kernel scheduler schedules KLTs/LWPs onto physical CPUs (system scope). The library sizes the LWP pool automatically: when all LWPs block in indefinite waits, the kernel sends **SIGWAITING**, and if runnable threads exist the library creates a new LWP. (Lecture framing: ideally the kernel notifies the library just before blocking, so the library can request more kernel threads; the paper says SIGWAITING arrives only after all LWPs are already blocked.) The application can give a hint via `thr_setconcurrency(n)` so the library keeps at least n LWPs. (Lecture framing: a `set_concurrency` system call, to which the kernel responds by allocating another kernel thread; the paper says it is a library hint, and the library creates the LWPs itself.) Idle LWPs are aged out (after ~5 minutes unused). User-level preemption is done by setting a flag in the thread structure and sending the LWP a **SIGLWP**.
-- **Synchronization:** If a ULT blocks on a process-local synchronization variable, it is placed on that variable's sleep queue and the library switches another ULT onto the same LWP (no kernel involvement). A bound thread instead parks its LWP. Process-shared synchronization variables rely on LWP-level kernel primitives, so the thread sleeps in the kernel still attached to its LWP. If a ULT blocks in the kernel (I/O), its LWP blocks with it; the library learns about pool exhaustion only through SIGWAITING. Inside the kernel (Eykholt), the default mutex is **adaptive**: spin while the owner is running on another CPU, block otherwise.
-- **Signaling:** Complex, because the kernel sees only LWP masks, not thread masks. Signal handlers are shared by the whole process; masks are per thread. Synchronous signals (e.g., SIGSEGV) go to the thread that caused them. For asynchronous signals, the library keeps each LWP mask equal to or less restrictive than its current thread's mask and interposes its own global handler. If the signal arrives at a thread that has it masked, the handler sets the LWP's mask to the thread's mask and re-sends the signal to the process (undirected) or to the LWP (directed), so it can reach another LWP running a thread with the signal enabled. If no active thread can take it, the library can run an inactive thread that has the signal unmasked. A directed `thr_kill()` to a non-running thread just posts the signal as pending in the thread structure; to a running thread it is sent to that thread's LWP via `_lwp_kill()`.
+- **Scheduling:** Two levels. The user-level library schedules unbound ULTs onto LWPs (Paper, Stein & Shah: from the pool, using priority-ordered run queues, process scope). The kernel scheduler schedules KLTs/LWPs onto physical CPUs (Paper, Stein & Shah: system scope). (Paper, Stein & Shah: the library sizes the LWP pool automatically: when all LWPs block in indefinite waits, the kernel sends **SIGWAITING**, and if runnable threads exist the library creates a new LWP.) (Lecture framing: ideally the kernel notifies the library just before blocking, so the library can request more kernel threads; Paper, Stein & Shah: SIGWAITING arrives only after all LWPs are already blocked.) The application can ask for more concurrency (Lecture framing: a `set_concurrency` system call, to which the kernel responds by allocating another kernel thread; Paper, Stein & Shah: `thr_setconcurrency(n)` is a library hint, and the library keeps at least n LWPs, creating them itself.) (Paper, Stein & Shah: idle LWPs are aged out after ~5 minutes unused. User-level preemption is done by setting a flag in the thread structure and sending the LWP a **SIGLWP**.)
+- **Synchronization:** (Paper, Stein & Shah: if a ULT blocks on a process-local synchronization variable, it is placed on that variable's sleep queue and the library switches another ULT onto the same LWP, with no kernel involvement. A bound thread instead parks its LWP. Process-shared synchronization variables rely on LWP-level kernel primitives, so the thread sleeps in the kernel still attached to its LWP.) If a ULT blocks in the kernel (I/O), its LWP blocks with it (Paper, Stein & Shah: the library learns about pool exhaustion only through SIGWAITING). The kernel is unaware of the library's mutexes and wait queues, so a ULT holding a lock on a preempted KLT can stall the others. Solaris kernel mutexes are **adaptive** (Lecture framing: spin or block depending on whether the owner is running on another CPU and on the length of the critical section; Paper, Eykholt et al.: adaptive is the default kernel mutex type, which spins while the owner is running on another CPU and blocks otherwise; critical-section length is not an input).
+- **Signaling:** Complex, because the kernel sees only the KLT/LWP masks, not the user-level thread masks. Signal handlers are shared by the whole process; masks are per thread. The library installs a wrapper handler that sees every ULT mask, and when the signal lands on a thread that has it masked, it swaps in a runnable ULT that can take it, sends a directed signal to the LWP running such a ULT, or, if no ULT can take it, disables the signal on that KLT by system call and reissues it to the process. (Paper, Stein & Shah: synchronous signals, e.g. SIGSEGV, go to the thread that caused them. For asynchronous signals, the library keeps each LWP mask equal to or less restrictive than its current thread's mask and interposes its own global handler. If the signal arrives at a thread that has it masked, the handler sets the LWP's mask to the thread's mask and re-sends the signal to the process if undirected, or to the LWP if directed, so it can reach another LWP running a thread with the signal enabled. If no active thread can take it, the library can run an inactive thread that has the signal unmasked. A directed `thr_kill()` to a non-running thread just posts the signal as pending in the thread structure; to a running thread it is sent to that thread's LWP via `_lwp_kill()`.)
 
 **Pros:** Flexibility; can support many more user threads than kernel threads; user-level scheduling, synchronization, and signal-mask updates are fast (no system calls).
 **Cons:** Requires coordination between user and kernel levels; complexity in signal handling; kernel has limited visibility into user threads.
@@ -503,7 +505,7 @@ In the Solaris model, **m** user-level threads are mapped onto **n** kernel-leve
 
 The mechanisms in the Solaris papers were designed to **ration** kernel resources. Specifically:
 
-- **Configuring the degree of concurrency** (`thr_setconcurrency`, plus the kernel's SIGWAITING notification used to grow the LWP pool) was needed because you couldn't just automatically get as many kernel threads as you wanted. Stein & Shah explicitly reject one LWP per thread because most would sit idle and overload the OS with their resource requirements.
+- **Configuring the degree of concurrency** (`set_concurrency`) (Paper, Stein & Shah: `thr_setconcurrency`, plus the kernel's SIGWAITING notification used to grow the LWP pool) was needed because you couldn't just automatically get as many kernel threads as you wanted. (Paper, Stein & Shah: one LWP per thread is explicitly rejected because most would sit idle and overload the OS with their resource requirements.)
 - **LWPs** served as an intermediate layer because kernel threads were too expensive to allocate one-per-user-thread. LWPs multiplexed user threads onto a smaller number of kernel threads.
 - **Complex signal handling** was necessary because the kernel couldn't see user-level threads directly; signals had to be routed through the LWP/KLT layer with extra logic.
 
@@ -511,7 +513,7 @@ In the current Linux model (NPTL, 1:1), these mechanisms are unnecessary because
 
 1. **Kernel trapping has become much cheaper.** User/kernel crossings are more affordable on modern hardware, so the overhead of having the kernel manage every thread is acceptable.
 2. **Modern platforms have much more memory.** The constraint that forced Solaris to keep the number of kernel threads small no longer applies. Allocating one kernel task per user thread is feasible.
-3. **The kernel sees every user thread.** With 1:1, there is no need for an intermediate LWP layer, no need for user-level scheduling, no need for `thr_setconcurrency`/SIGWAITING, and no need for complex signal routing between user and kernel levels.
+3. **The kernel sees every user thread.** With 1:1, there is no need for an intermediate LWP layer, no need for user-level scheduling, no need for `set_concurrency` calls or special kernel signals, and no need for complex signal routing between user and kernel levels.
 4. **Signal handling is straightforward.** Since each user thread has a corresponding kernel task, the kernel can deliver signals directly to the right task.
 
 The tradeoff is that the 1:1 model may not scale as well at extreme thread counts. At very large scales, a many-to-many model with custom user-level policies might be more efficient, but for typical workloads, the simplicity and directness of 1:1 wins.
@@ -528,7 +530,7 @@ An **interrupt** is an event generated **externally** by components other than t
 2. The interrupt is uniquely identified by its number.
 3. The CPU looks up the interrupt number in the **interrupt handler table** (maintained by the OS, system-wide).
 4. The CPU sets the program counter to the starting address of the corresponding handler routine.
-5. The handler executes in the context of the thread that was interrupted (on that thread's stack). (This is the traditional UNIX scheme and the lecture's framing. In SunOS 5.0, per Eykholt et al., the kernel instead switches onto the stack of a preallocated interrupt thread; the interrupted thread is pinned, not borrowed.)
+5. The handler executes in the context of the thread that was interrupted (on that thread's stack). (Lecture framing: the traditional UNIX scheme; Paper, Eykholt et al.: in SunOS 5.0 the kernel instead switches onto the stack of a preallocated interrupt thread; the interrupted thread is pinned, not borrowed.)
 6. After handling, execution returns to the interrupted thread.
 
 Interrupt handling is per-CPU. The OS maintains interrupt masks per-CPU to enable/disable specific interrupts on specific processors. On multi-CPU systems, interrupt routing logic directs interrupts to a CPU that has the interrupt enabled.
@@ -544,9 +546,9 @@ A **signal** is an event triggered by the CPU and the software running on it. Si
 3. The program counter is set to the handling routine for that signal.
 4. The handler executes.
 
-**Can each process configure their own signal handler?** Yes. Each process maintains its own signal handler table. Processes can install custom handlers via system calls like `signal()` or `sigaction()`. For most signals, processes can override the default behavior (terminate, ignore, core dump, stop, continue). Some signals (e.g., SIGKILL, SIGSTOP) cannot be caught or handled.
+**Can each process configure their own signal handler?** Yes. Each process maintains its own signal handler table. Processes can install custom handlers via system calls like `signal()` or `sigaction()`. For most signals, processes can override the default behavior (terminate, ignore, core dump, stop, continue). Some signals cannot be caught or handled (Beyond the lecture: e.g., SIGKILL and SIGSTOP).
 
-**Can each thread have their own signal handler?** No. Signal handlers are per-process (shared among all threads); Stein & Shah rejected per-thread handler vectors as adding non-trivial complexity. However, each thread can set its own **signal mask** to disable or enable specific signals for that thread. Synchronously generated signals (e.g., SIGSEGV) go to the thread that caused them. Asynchronous signals go to one thread that has the signal unmasked; if every thread masks it, the signal stays pending on the process until some thread unmasks it.
+**Can each thread have their own signal handler?** No. Signal handlers are per-process (shared among all threads). (Paper, Stein & Shah: per-thread handler vectors were rejected as adding non-trivial complexity.) However, each thread can set its own **signal mask** to disable or enable specific signals for that thread. (Paper, Stein & Shah: synchronously generated signals, e.g. SIGSEGV, go to the thread that caused them; an asynchronous signal goes to one thread that has it unmasked; if every thread masks it, it stays pending on the process until some thread unmasks it.)
 
 | Property          | Interrupts                        | Signals                              |
 |-------------------|-----------------------------------|--------------------------------------|
@@ -554,10 +556,10 @@ A **signal** is an event triggered by the CPU and the software running on it. Si
 | Depends on        | Hardware platform                 | Operating system                     |
 | Timing            | Asynchronous                      | Synchronous or asynchronous          |
 | Handler table     | System-wide (per OS)              | Per-process                          |
-| Masking           | Per-CPU                           | Per-thread (signal mask)             |
+| Masking           | Per-CPU                           | Per-process (Paper, Stein & Shah: per thread) |
 | Custom handlers   | Set by OS                         | Set by process                       |
 
-(Lecture framing: the lecture's interrupts-vs-signals comparison says signal masks are per process; the paper (Stein & Shah) says each thread and each LWP has its own mask, and only the handlers are per process.)
+(Lecture framing: the lecture's interrupts-vs-signals comparison says signal masks are per process; Paper, Stein & Shah: each thread and each LWP has its own mask, and only the handlers are per process.)
 
 ### 23. What's the potential issue if an interrupt or signal handler needs to lock a mutex? What's the workaround described in the Solaris papers?
 
@@ -567,26 +569,26 @@ A **signal** is an event triggered by the CPU and the software running on it. Si
 
 Instead of executing the handler on the interrupted thread's stack, the handler code runs in its **own thread**. This way, if the handler needs the mutex, it blocks like any other thread and waits for the mutex holder to release it. No deadlock occurs because the original thread can continue executing and eventually release the mutex.
 
-To avoid the cost of dynamic thread creation on every interrupt, the kernel **preallocates partially initialized** interrupt threads: one per potentially active interrupt level below the "thread level", per CPU (nine SPARC interrupt levels can use threads), plus a single clock interrupt thread for the system, at roughly 8 KB each for stack and data structure. When an interrupt arrives, the kernel does the minimum work to switch onto the interrupt thread's stack. The interrupted thread is **pinned** (cannot run elsewhere) until the interrupt thread returns or blocks. Only if the interrupt thread blocks on a mutex or condition variable is it converted (passivated) into a full-fledged thread that any CPU can run, and the pinned thread resumes. Interrupts above the thread level (typically the clock level) are not handled as threads; they may use only spin mutexes and software interrupts.
+To avoid the cost of dynamic thread creation on every interrupt, the kernel pre-creates and pre-initializes the interrupt threads. (Paper, Eykholt et al.: it **preallocates partially initialized** interrupt threads: one per potentially active interrupt level below the "thread level", per CPU, nine SPARC interrupt levels can use threads, plus a single clock interrupt thread for the system, at roughly 8 KB each for stack and data structure. When an interrupt arrives, the kernel does the minimum work to switch onto the interrupt thread's stack. The interrupted thread is **pinned**, so it cannot run elsewhere, until the interrupt thread returns or blocks. Only if the interrupt thread blocks on a mutex or condition variable is it converted, passivated, into a full-fledged thread that any CPU can run, and the pinned thread resumes. Interrupts above the thread level are not handled as threads; they may use only spin mutexes and software interrupts. The thread level is normally the maximum priority and is lowered, typically to the scheduling clock's interrupt level, only where firmware cannot tolerate the short dispatcher lockout.)
 
-The lectures describe a dynamic decision: if the handler does not lock, it executes on the interrupted thread's stack; if it can block, it becomes a real thread. They relate this to the common technique of splitting the handler into two halves, using Linux's names (Lecture framing; the paper does not do this, see the next paragraph):
+The lectures describe a dynamic decision: if the handler does not lock, it executes on the interrupted thread's stack; if it can block, it becomes a real thread. They relate this to the common technique of splitting the handler into two halves, using Linux's names (Lecture framing: the two-half split; Paper, Eykholt et al.: SunOS does not do this, see the next paragraph):
 
-- **Top half:** Executes in the context of the interrupted thread. Must be fast, non-blocking, minimal processing. (Paper: no handler code runs in the interrupted context and no thread is created per interrupt; the kernel only switches onto a preallocated interrupt thread's stack.)
-- **Bottom half:** Runs as a schedulable thread. Can contain arbitrary complexity, including blocking on mutexes. (Paper: the entire handler runs in the interrupt thread, which is promoted to a full thread only if it blocks.)
+- **Top half:** Executes in the context of the interrupted thread. Must be fast, non-blocking, minimal processing. (Paper, Eykholt et al.: no handler code runs in the interrupted context and no thread is created per interrupt; the kernel only switches onto a preallocated interrupt thread's stack.)
+- **Bottom half:** Runs as a schedulable thread. Can contain arbitrary complexity, including blocking on mutexes. (Paper, Eykholt et al.: the entire handler runs in the interrupt thread, which is promoted to a full thread only if it blocks.)
 
-The paper (Eykholt et al.) says the explicit two-level split (a bounded first-level handler that wakes a second-level thread) is the alternative it rejected, because it requires restructuring device drivers and always costs a full context switch. SunOS runs the whole handler on the interrupt thread and pays the full-thread cost only under contention.
+(Paper, Eykholt et al.: the explicit two-level split, a bounded first-level handler that wakes a second-level thread, is the alternative the paper rejected, because it requires restructuring device drivers and always costs a full context switch. SunOS runs the whole handler on the interrupt thread and pays the full-thread cost only under contention.)
 
 **Cost-benefit analysis (SunOS paper, specific numbers):**
 
-- The overhead of the interrupts-as-threads approach: **~40 SPARC instructions** per interrupt, the fixed cost of entering through a preallocated interrupt thread (the lecture attributes it to the checks and, if necessary, creating a separate thread).
-- The savings: **~12 SPARC instructions** per mutex enter/exit (because critical sections no longer need to raise and lower the interrupt priority level around every mutex enter/exit).
+- The overhead of the interrupts-as-threads approach: **~40 SPARC instructions** per interrupt (Lecture framing: the checks and, if necessary, creating a separate thread; Paper, Eykholt et al.: the fixed cost of entering through a preallocated interrupt thread).
+- The savings: **~12 SPARC instructions** per mutex enter/exit (because the interrupt mask no longer needs to be changed around every mutex lock/unlock).
 - Since mutex lock/unlock operations are **far more frequent** than interrupts, the net effect is a **decrease** in total instruction count, provided interrupts do not block too often. This is the "optimize for the common case" principle in action.
 
 **Workaround 2 (from Stein & Shah): Signal masks.**
 
-For signal handlers at user level, the fix is to make critical sections **async safe**: mask the signal before acquiring the mutex and unmask it after releasing it, so the handler cannot run while the mutex is held. The paper's example is the threads library itself: if `mutex_lock()` is interrupted while holding an internal library lock and the handler calls `mutex_lock()` again, it deadlocks.
+For signal handlers at user level, the fix is to mask the signal before acquiring the mutex and unmask it after releasing it, so the handler cannot run while the mutex is held (Paper, Stein & Shah: this makes the critical section **async safe**). (Paper, Stein & Shah: the example is the threads library itself: if `mutex_lock()` is interrupted while holding an internal library lock and the handler calls `mutex_lock()` again, it deadlocks.)
 
-To make this cheap, `thr_sigsetmask()` only modifies the user-level thread mask and makes no system call unless a signal actually arrives. For its own internal critical sections, the library goes further and sets/clears a flag in the thread structure that acts as a "mask all signals" bit; if a signal arrives while the flag is set, the library's global handler defers it.
+To make this cheap, signal mask updates happen at user level and make no system call unless a signal actually arrives (Paper, Stein & Shah: the call is `thr_sigsetmask()`, which only modifies the user-level thread mask). (Paper, Stein & Shah: for its own internal critical sections, the library goes further and sets/clears a flag in the thread structure that acts as a "mask all signals" bit; if a signal arrives while the flag is set, the library's global handler defers it.)
 
 At the kernel level, the equivalent of masking (blocking out interrupts around each mutex) costs ~12 instructions per mutex enter/exit. The interrupts-as-threads approach eliminates this per-mutex cost at the expense of ~40 instructions per interrupt. Since mutexes are more frequent than interrupts, the interrupts-as-threads approach is the better optimization.
 
@@ -600,26 +602,26 @@ At the kernel level, the equivalent of masking (blocking out interrupts around e
 | **Context switch cost**  | Expensive: full address space swap, cold caches       | Cheaper: shared address space, warmer caches           |
 | **Communication**        | IPC required (expensive)                              | Shared variables (cheap)                               |
 | **Isolation**            | Strong: process failure doesn't affect others         | Weak: one thread crash can bring down the process      |
-| **Kernel support needed**| No special threading support                          | Requires kernel-level thread support (FreeBSD 2.2.6 lacked it, so Flash-MT could not run there) |
-| **Application-level caching** | Each process keeps its own cache: more compulsory misses, less efficient memory use | Single shared cache, but accesses must be synchronized |
-| **Information gathering**| Requires IPC to consolidate statistics                | Per-thread statistics with periodic consolidation, or fine-grained locking on globals |
-| **Long-lived connections**| A whole process per connection                       | A whole thread per connection                          |
+| **Kernel support needed**| No special threading support                          | Requires kernel-level thread support (Paper, Pai et al.: FreeBSD 2.2.6 lacked it, so Flash-MT could not run there) |
+| **Application-level caching** | (Paper, Pai et al.: each process keeps its own cache: more compulsory misses, less efficient memory use) | (Paper, Pai et al.: single shared cache, but accesses must be synchronized) |
+| **Information gathering**| (Paper, Pai et al.: requires IPC to consolidate statistics) | (Paper, Pai et al.: per-thread statistics with periodic consolidation, or fine-grained locking on globals) |
+| **Long-lived connections**| (Paper, Pai et al.: a whole process per connection)  | (Paper, Pai et al.: a whole thread per connection)    |
 | **Scalability**          | Per-process overhead limits scalability               | Better scalability with concurrent requests            |
 | **Disk-bound behavior**  | Larger footprint means less cache, becomes disk-bound sooner | Smaller footprint, more cache, delays disk-bound behavior |
 
-Both MP and MT naturally overlap disk, CPU, and network activity: only the process or thread that issues a disk read blocks, and each can have one outstanding disk request (so both benefit from multiple disks and disk-head scheduling).
+(Paper, Pai et al.: both MP and MT naturally overlap disk, CPU, and network activity: only the process or thread that issues a disk read blocks, and each can have one outstanding disk request, so both benefit from multiple disks and disk-head scheduling.)
 
-In the Flash paper experiments (Flash-MP used 32 processes, Flash-MT 64 threads):
+In the Flash paper experiments (Paper, Pai et al.: Flash-MP used 32 processes, Flash-MT 64 threads):
 
-- **Best case (all cached):** MP and MT lag slightly behind the event-driven servers, which the paper attributes to extra kernel overhead (context switching, etc.). (Lecture framing: synchronization and context switching; synchronization applies only to MT, since MP processes have private address spaces.)
+- **Best case (all cached):** MP and MT lag slightly behind the event-driven servers (Lecture framing: synchronization and context switching; Paper, Pai et al.: extra kernel overhead, context switching, etc.; synchronization applies only to MT, since MP processes have private address spaces).
 - **Owlnet trace (mostly cached):** Flash and SPED lead, followed by MT/MP, then Apache.
-- **CS trace (disk-bound):** (Lecture framing:) MT does better than MP because MT's smaller memory footprint leaves more memory for caching files, reducing the number of disk reads. The paper itself only notes that MP performs well on this disk-intensive trace, while Flash achieves the highest throughput.
-- **Varying data set size:** Flash-MP falls well short of the other architectures on cached workloads, likely because its per-process user-level caches are smaller. Flash-MT performed comparably to Flash, but only after the authors carefully minimized lock contention; without that, its disk-bound results resembled Flash-SPED.
-- **Many concurrent connections (WAN emulation):** MP declines significantly as connections are added, due to per-process overhead. MT holds up better but declines gradually past ~200 connections due to per-thread switching and space overhead.
+- **CS trace (disk-bound):** (Lecture framing: MT does better than MP because MT's smaller memory footprint leaves more memory for caching files, reducing the number of disk reads; Paper, Pai et al.: notes only that MP performs well on this disk-intensive trace, while Flash achieves the highest throughput.)
+- **Varying data set size:** (Paper, Pai et al.: Flash-MP falls well short of the other architectures on cached workloads, likely because its per-process user-level caches are smaller. Flash-MT performed comparably to Flash, but only after the authors carefully minimized lock contention; without that, its disk-bound results resembled Flash-SPED.)
+- **Many concurrent connections (WAN emulation):** (Paper, Pai et al.: MP declines significantly as connections are added, due to per-process overhead. MT holds up better but declines gradually past ~200 connections due to per-thread switching and space overhead.)
 
 ### 25. What are the benefits of the event-based model described in the Flash paper over MT and MP? What are the limitations? Would you convert the AMPED model into a AMTED (async multi-threaded event-driven)? How do you think an AMTED version of Flash would compare to the AMPED version of Flash?
 
-**The event-based model (AMPED):** Flash uses a single-threaded event dispatcher in the main loop, with asymmetric helper processes to handle blocking I/O (disk reads). The dispatcher uses `select` (the lectures also mention `poll`/`epoll`) to detect events on file descriptors. Handlers run to completion; if they need to block, they delegate to a helper process via pipes. Flash maps files with `mmap` and checks memory residency with `mincore`; only if pages are not resident does it ask a helper, which touches the pages to bring them into memory and returns just a completion notification (not the data). Helpers also perform pathname translations. They are spawned dynamically and kept in reserve when idle.
+**The event-based model (AMPED):** Flash uses a single-threaded event dispatcher in the main loop, with asymmetric helper processes to handle blocking I/O (disk reads). The dispatcher uses `select` (the lectures also mention `poll`/`epoll`) to detect events on file descriptors. Handlers run to completion; if they need to block, they delegate to a helper process via pipes. Flash maps files with `mmap` and checks memory residency with `mincore`, to decide between a local handler and a helper. (Paper, Pai et al.: only if pages are not resident does it ask a helper, which touches the pages to bring them into memory and returns just a completion notification, not the data. Helpers also perform pathname translations. They are spawned dynamically and kept in reserve when idle.)
 
 **Benefits over MT and MP:**
 
@@ -629,22 +631,22 @@ In the Flash paper experiments (Flash-MP used 32 processes, Flash-MT 64 threads)
 | More memory for caching       | Smaller footprint means more memory available for file/computation caches  |
 | No context switching overhead | Single main thread processes events sequentially; no thread/process switch |
 | No synchronization overhead   | Single thread of control means no mutexes or condition variables needed    |
-| Single unsynchronized cache   | Application-level caches and statistics are shared without locks or IPC    |
-| Cheap long-lived connections  | A connection costs a file descriptor and some state, not a thread/process  |
+| Single unsynchronized cache   | Application-level caches are shared without locks (Paper, Pai et al.: statistics too, without IPC) |
+| Cheap long-lived connections  | (Paper, Pai et al.: a connection costs a file descriptor and some state, not a thread/process) |
 | Delays disk-bound behavior    | More cache means fewer disk reads are needed                               |
 
-Flash also performs application-level caching at multiple levels: pathname translation caching, response header caching, and mapped file caching (inactive mapped chunks kept in an LRU free list). It also pads response headers to 32-byte multiples so that `writev` of header plus file data does not cause misaligned copies in the kernel. (Lecture framing: alignment for DMA and DMA with scatter-gather, i.e. vector I/O; the paper says the padding keeps `writev` copies aligned with 32-byte CPU cache lines.)
+Flash also performs application-level caching at multiple levels: pathname translation caching, response header caching, and mapped file caching (Paper, Pai et al.: inactive mapped chunks kept in an LRU free list). (Lecture framing: alignment for DMA and DMA with scatter-gather, i.e. vector I/O; Paper, Pai et al.: it pads response headers to 32-byte multiples so that `writev` of header plus file data does not cause misaligned copies in the kernel, keeping the copies aligned with 32-byte CPU cache lines.)
 
-Compared to SPED specifically, AMPED does not stall all processing when a request misses in the file cache. Non-blocking `read` on disk files can still block on FreeBSD 2.2.6, Solaris 2.6, and most UNIX systems, and true async disk APIs were not integrated with `select`.
+Compared to SPED specifically, AMPED does not stall all processing when a request misses in the file cache. (Paper, Pai et al.: non-blocking `read` on disk files can still block on FreeBSD 2.2.6, Solaris 2.6, and most UNIX systems, and true async disk APIs were not integrated with `select`.)
 
 **Limitations:**
 
 - Not every kernel supports asynchronous I/O. Flash must fake it using helper processes.
-- The event-driven model is only applicable to certain classes of applications (those structured around event handling).
+- The event-driven model works well for server-type applications, but is not necessarily applicable to arbitrary applications.
 - Event routing on multi-CPU systems adds complexity.
 - A bug in the main event loop can block the entire server.
 - Helper processes add the overhead of IPC (pipes) and process creation/management.
-- The `mincore` residency check is wasted work on fully cached workloads, which is why Flash-SPED slightly outperforms Flash there.
+- The `mincore` residency check is wasted work on fully cached workloads, which is why SPED outperforms Flash there (Paper, Pai et al.: only slightly).
 
 **AMPED -> AMTED conversion:**
 
@@ -655,13 +657,13 @@ Yes, converting to AMTED (Async Multi-Threaded Event-Driven) would make sense. R
 - **Better performance:** Helper threads share the address space with the main event loop, so they have a smaller memory footprint than helper processes. This means even more memory is available for caching.
 - **Cheaper context switching:** Thread context switches between helpers and the event loop are cheaper than process context switches.
 - **Cheaper communication:** Shared memory (shared variables) vs. pipes for IPC.
-- **Performance differential:** Likely on par with the difference between standard MT and MP models. Not dramatic, but a consistent improvement. The gain is bounded because the paper's helpers already share file data with the main process through `mmap` and the OS page cache, return only a short completion notification, and are few in number (only enough to keep the disk busy). The paper notes the helpers could equally be kernel threads within the server process.
+- **Performance differential:** Likely on par with the difference between standard MT and MP models. Not dramatic, but a consistent improvement. (Paper, Pai et al.: the gain is bounded because the helpers already share file data with the main process through `mmap` and the OS page cache, return only a short completion notification, and are few in number, only enough to keep the disk busy.)
 - **Caveat:** Threads would share the main process's address space, so a crashing or misbehaving helper could take down the server, and any shared state touched by helpers would need synchronization.
-- **Historical context:** The paper states that separate processes were chosen instead of kernel threads to keep Flash portable to operating systems that did not (yet) support kernel threads, such as FreeBSD 2.2.6. On modern systems with reliable kernel threading, AMTED would be the obvious choice.
+- **Historical context:** Separate processes were chosen instead of kernel threads to keep Flash portable to operating systems that did not (yet) support kernel threads (Paper, Pai et al.: such as FreeBSD 2.2.6). On modern systems with reliable kernel threading, AMTED would be the obvious choice.
 
 ### 26. There are several sets of experimental results from the Flash paper discussed in the lesson. Do you understand the purpose of each set of experiments (what was the question they wanted to answer)? Do you understand why the experiment was structured in a particular way (why they chose the variables to be varied, the workload parameters, the measured metric...)?
 
-The Flash paper compares: Flash (AMPED), SPED (single-process event-driven), MT (multithreaded), MP (multiprocess), Zeus v1.30 (SPED; run with two processes for the trace tests, as the vendor advised, and one process for the synthetic test; the lecture's slide lists it as "SPED w/ 2 processes"), and Apache v1.3.1 (multiprocess, no aggressive optimizations at the time). Flash-SPED, Flash-MT, and Flash-MP were built from the same code base by swapping only the event/helper dispatch mechanism, so differences reflect architecture rather than implementation quality. Tests ran on a 333 MHz Pentium II with 128 MB of memory under both Solaris 2.6 and FreeBSD 2.2.6, with event-driven client programs issuing requests as fast as the server could handle them.
+The Flash paper compares: Flash (AMPED), SPED (single-process event-driven), MT (multithreaded), MP (multiprocess), Zeus (Lecture framing: the slide lists it as "SPED w/ 2 processes"; Paper, Pai et al.: Zeus v1.30, a SPED server run with two processes for the trace tests, as the vendor advised, and one process for the synthetic test), and Apache (multiprocess, no aggressive optimizations at the time; Paper, Pai et al.: v1.3.1). SPED, MT, and MP were built from the same code base (Paper, Pai et al.: as Flash-SPED, Flash-MT, and Flash-MP, by swapping only the event/helper dispatch mechanism), so differences reflect architecture rather than implementation quality. (Paper, Pai et al.: tests ran on a 333 MHz Pentium II with 128 MB of memory under both Solaris 2.6 and FreeBSD 2.2.6, with event-driven client programs issuing requests as fast as the server could handle them.)
 
 **Metrics used:** Bandwidth (bytes transferred / time) and connection rate (connections serviced / time), both as a function of file size.
 
@@ -670,13 +672,13 @@ The Flash paper compares: Flash (AMPED), SPED (single-process event-driven), MT 
 - **Question:** What does performance look like when every request is a cache hit?
 - **Setup:** All requests ask for the **same file**, varied in size from 0 to 200 KB. Since only one file is ever requested, it is always cached after the first access.
 - **Why this structure:** By varying file size, they vary the amount of work per request. Using a single file guarantees cache hits, isolating the overhead of the server itself from disk I/O.
-- **Results:** All implementations are similar; the paper concludes architecture has little impact on a trivial cached workload. SPED is best, but only slightly (no extra checks; lecture framing: the summary slide writes "SPED >> AMPED Flash"). Flash is close (the paper: Flash-SPED "slightly outperforms" Flash) but does an extra `mincore` check for memory presence. Zeus shows an anomaly (Lecture framing: a drop around 125 KB on the Solaris graph the lecture shows; the paper says it occurs on FreeBSD for files between 10 and 100 KB and attributes it to the byte-alignment problem that Flash avoids by padding headers). MT/MP are lower (Lecture framing: synchronization and context switching overhead; the paper says extra kernel overhead such as context switching, and MP needs no synchronization between requests because its processes have private address spaces). Apache is lowest (no optimizations). All servers perform substantially better on FreeBSD than on Solaris, but their relative order is unchanged.
+- **Results:** All implementations are similar (Paper, Pai et al.: architecture has little impact on a trivial cached workload). SPED is best (no extra checks; Lecture framing: the summary slide writes "SPED >> AMPED Flash"; Paper, Pai et al.: Flash-SPED only "slightly outperforms" Flash). Flash is close but does an extra `mincore` check for memory presence. Zeus shows an anomaly (Lecture framing: a drop around 125 KB on the Solaris graph the lecture shows, from a DMA misalignment; Paper, Pai et al.: it occurs on FreeBSD for files between 10 and 100 KB and is attributed to the byte-alignment problem that Flash avoids by padding headers). MT/MP are lower (Lecture framing: synchronization and context switching overhead; Paper, Pai et al.: extra kernel overhead such as context switching, and MP needs no synchronization between requests because its processes have private address spaces). Apache is lowest (no optimizations). (Paper, Pai et al.: all servers perform substantially better on FreeBSD than on Solaris, but their relative order is unchanged.)
 - **Takeaway:** When data is cached, the overhead differences between models are small, but event-driven models have a slight edge because they avoid context-switching overhead (and, compared with MT, synchronization).
 
 #### Experiment 2: Owlnet Trace
 
 - **Question:** How do the servers perform with a realistic small workload that mostly fits in memory?
-- **Setup:** Replayed traces from the Rice Owlnet web server (personal pages for ~4,500 students and staff, relatively small working set that mostly fits in memory). Replaying real logs gives a realistic yet reproducible request distribution.
+- **Setup:** Replayed traces from the Rice Owlnet web server (student-run websites; relatively small working set that mostly fits in memory) (Paper, Pai et al.: personal pages for ~4,500 students and staff). Replaying real logs gives a realistic yet reproducible request distribution.
 - **Why this trace:** Represents a realistic workload that is mostly cache-friendly but not entirely.
 - **Results:** Flash and SPED are best. Flash is slightly better than SPED because when a request requires disk I/O (not cached), SPED blocks entirely while Flash delegates to helper processes. MT/MP follow, then Apache.
 - **Takeaway:** For mostly-cached workloads, AMPED and SPED dominate, but AMPED handles the occasional disk access gracefully.
@@ -686,10 +688,10 @@ The Flash paper compares: Flash (AMPED), SPED (single-process event-driven), MT 
 - **Question:** How do the servers perform with a realistic large workload that does not fit in memory?
 - **Setup:** Replayed traces from the Rice CS department web server (large number of files, working set far exceeds memory).
 - **Why this trace:** Represents a disk-heavy, realistic workload where caching is insufficient.
-- **Results:** SPED performance drops dramatically (it blocks on every disk read with no helpers and no async I/O). MT does better than MP (lecture framing: smaller memory footprint = more cache = fewer disk reads, plus cheaper context switching; the paper itself only notes that MP performs well on this disk-intensive trace). Flash performs **best**: a smaller memory footprint than MP/MT, more memory for caching, fewer disk reads, no explicit synchronization overhead. Flash needs only enough helpers to keep the disk busy rather than a process or thread per connection. Apache is lowest on both traces; comparing it with Flash-MP shows this is mostly due to its lack of optimizations, and only partly due to its MP architecture.
+- **Results:** SPED performance drops dramatically (it blocks on every disk read with no helpers and no async I/O). MT does better than MP (Lecture framing: smaller memory footprint = more cache = fewer disk reads, plus cheaper context switching; Paper, Pai et al.: notes only that MP performs well on this disk-intensive trace). Flash performs **best**: a smaller memory footprint than MP/MT, more memory for caching, fewer disk reads, no explicit synchronization overhead. (Paper, Pai et al.: Flash needs only enough helpers to keep the disk busy rather than a process or thread per connection.) Apache is lowest on both traces (Paper, Pai et al.: comparing it with Flash-MP shows this is mostly due to its lack of optimizations, and only partly due to its MP architecture).
 - **Takeaway:** When the workload is disk-bound, Flash's AMPED model shines because its small footprint maximizes cache utilization.
 
-#### Experiment 3b: Real Workload with Varying Data Set Size
+#### Experiment 3b: Real Workload with Varying Data Set Size (Paper, Pai et al.)
 
 - **Question:** How does performance change as the working set grows from fitting in memory to exceeding it?
 - **Setup:** Rice ECE department server logs, truncated to produce data sets of different sizes and replayed in a loop by 64 clients. Bandwidth is reported instead of requests/sec because truncating the log also changes the file-size distribution.
@@ -699,19 +701,19 @@ The Flash paper compares: Flash (AMPED), SPED (single-process event-driven), MT 
 #### Experiment 4: Impact of Optimizations
 
 - **Question:** How much do Flash's application-level optimizations contribute to performance?
-- **Setup:** Same configuration as the single-file test on FreeBSD (clients repeatedly request one cached file of a given size). Measured connection rate vs. file size for all eight combinations of the three optimizations: pathname translation caching, response header caching, mapped file caching.
+- **Setup:** (Paper, Pai et al.: same configuration as the single-file test on FreeBSD, with clients repeatedly requesting one cached file of a given size.) Measured connection rate vs. file size for combinations of the three optimizations: pathname translation caching, response header caching, mapped file caching (Lecture framing: four curves: none, pathname only, pathname plus mapped file, and all three; Paper, Pai et al.: all eight combinations).
 - **Why this structure:** Isolates the contribution of each optimization.
-- **Results:** Connection rate decreases with file size (more work per connection). Connection rate increases as optimizations are added. Fully optimized Flash has the highest connection rate. Pathname translation caching provides the largest single benefit. Because each optimization removes a per-request cost, the effect is strongest for small files; without any of them, Flash's small-file performance would drop by about half.
+- **Results:** Connection rate decreases with file size (more work per connection). Connection rate increases as optimizations are added. Fully optimized Flash has the highest connection rate. (Paper, Pai et al.: pathname translation caching provides the largest single benefit. Because each optimization removes a per-request cost, the effect is strongest for small files; without any of them, Flash's small-file performance would drop by about half.)
 - **Takeaway:** Application-level optimizations (caching at multiple levels) provide significant, cumulative performance gains.
 
-#### Experiment 5: WAN Performance
+#### Experiment 5: WAN Performance (Paper, Pai et al.)
 
 - **Question:** How do the servers scale with the number of concurrent connections? WAN clients have limited bandwidth and packet loss, so connections last longer and a real server at a given request rate holds many more concurrent connections than a LAN benchmark would show.
 - **Setup:** WAN conditions were emulated on the LAN using persistent HTTP connections, increasing the number of simultaneous clients. Requests replayed the ECE logs with a 90 MB data set (to expose limited file cache effects), on Solaris.
 - **Results:** SPED, AMPED (Flash), and MT initially rise as connections are added (more concurrency, and each `select` call reports more ready events, amortizing its cost). Past ~200 connections, SPED and AMPED flatten, while MT declines gradually due to per-thread switching and space overhead. MP declines significantly due to per-process overhead and multiple application-level caches.
 - **Takeaway:** The per-process overhead of the MP model makes it scale poorly. Event-driven models handle increasing client counts best; MT is close but pays a per-thread cost.
 
-Overall, the paper reports that Flash matches or exceeds the other architectures across workloads, beating Zeus by up to 30% and Apache by up to 50% on real workloads.
+(Paper, Pai et al.: overall, Flash matches or exceeds the other architectures across workloads, beating Zeus by up to 30% and Apache by up to 50% on real workloads.)
 
 ### 27. If you ran your server from the class project for two different traces: (i) many requests for a single file, and (ii) many random requests across a very large pool of very large files, what do you think would happen as you add more threads to your server? Can you sketch a hypothetical graph?
 

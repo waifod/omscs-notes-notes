@@ -7,7 +7,7 @@ lecture: final-exam-review-questions
 
 # Final Exam Review Questions
 
-This document provides thorough, exam-ready answers to all final exam review questions for the Operating Systems course, organized by lecture (P3L1 through P4L4). Answers are drawn from the course lectures and the referenced papers (Fedorova et al. on scheduling, Anderson on spinlocks, Popek & Goldberg and Rosenblum & Garfinkel on virtualization, Birrell & Nelson on RPC, Nelson, Welch & Ousterhout on the Sprite file system, and Protic et al. on distributed shared memory). Where relevant, pseudocode, comparison tables, and quantitative formulas are included. Where a lecture diverges from its assigned paper, the lecture's exam-facing version is given first and the paper's account is marked inline.
+This document provides thorough, exam-ready answers to all final exam review questions for the Operating Systems course, organized by lecture (P3L1 through P4L4). Answers are drawn from the course lectures and the referenced papers (Fedorova et al. on scheduling, Anderson on spinlocks, Popek & Goldberg and Rosenblum & Garfinkel on virtualization, Birrell & Nelson on RPC, Nelson, Welch & Ousterhout on the Sprite file system, and Protic et al. on distributed shared memory). Where relevant, pseudocode, comparison tables, and quantitative formulas are included. Where a lecture diverges from its assigned paper, the lecture's exam-facing version is given first and the paper's account is marked inline as `(Lecture framing: ...; Paper, <Author>: ...)`; paper-only additions are marked `(Paper, <Author>: ...)`.
 
 ## P3L1
 
@@ -71,7 +71,7 @@ Frequent preemption (short timeslices) lowers the time any task waits before fir
 
 The subtlety for I/O-bound tasks: when such a task issues a blocking request every quantum, it yields *voluntarily* before the timeslice expires, so lengthening the timeslice changes nothing for a pure-I/O mix. The timeslice length only becomes visible when I/O-bound and CPU-bound tasks are mixed. If a CPU-bound task holds a long timeslice, a co-resident I/O-bound task is forced to wait for that quantum to expire, its I/O latency can no longer be hidden, device utilization drops, throughput falls, and its wait time balloons. That is precisely why a shorter timeslice helps the mixed case.
 
-### Can you work through a scenario describing some workload mix (few threads, their compute and I/O phases) and for a given scheduling discipline compute various metrics like average time to completion, system throughput, wait time of the tasks…
+### Can you work through a scenario describing some workload mix (few threads, their compute and I/O phases) and for a given scheduling discipline compute various metrics like average time to completion, system throughput, wait time of the tasks...
 
 #### The metric definitions
 
@@ -128,7 +128,7 @@ Round robin matches SJF's wait time and comes close on completion time without n
 Two CPU-bound tasks of 10s each, context switch = 0.1s.
 
 - **Timeslice = infinite (run to completion):** T1 (0 to 10), T2 (10 to 20). No switch cost. Average wait = (0 + 10) / 2 = 5.00 s; average completion = (10 + 20) / 2 = 15.00 s.
-- **Timeslice = 1s:** the two tasks interleave 1s at a time with a 0.1s switch between slices, so total time stretches to roughly 21.8s. Average wait drops (T2 starts at 1.1s instead of 10s), but throughput and average completion both degrade because of the repeated switch cost.
+- **Timeslice = 1s:** the two tasks interleave 1s at a time with a 0.1s switch between slices, so total time stretches to about 21.9s. Average wait drops (T2 starts at 1.1s instead of 10s), but throughput and average completion both degrade because of the repeated switch cost.
 
 This is the quantitative basis for "CPU-bound tasks want long timeslices." (Lecture note on the course graphic: for the 5-second CPU-bound case the average wait is 2.55s, not 3.05s; the lecture slide contains a division error that the errata corrects.)
 
@@ -136,7 +136,7 @@ This is the quantitative basis for "CPU-bound tasks want long timeslices." (Lect
 
 Two tasks, 10s of work each, context switch = 0.1s; each issues an I/O request every 1s of compute and the I/O takes 0.5s. If both are I/O-bound, each yields after 1s regardless of the timeslice, so a 1s and a 5s timeslice produce identical timelines and metrics. Make T1 CPU-bound and T2 I/O-bound and the picture changes: with a 5s timeslice T1 holds the CPU, T2 cannot issue its request until T1's quantum expires, its 0.5s I/O latency is no longer overlapped with T1's compute, total execution time grows, throughput falls, and T2's wait time rises. With a 1s timeslice the two interleave, T2's I/O overlaps T1's compute, and device utilization stays high. This is the mixed case that argues for short timeslices for I/O-bound work.
 
-### Do you understand the motivation behind the multi-level feedback queue, why different queues have different timeslices, how do threads move between these queues… Can you contrast this with the O(1) scheduler? Do you understand what were the problems with the O(1) scheduler which led to the CFS?
+### Do you understand the motivation behind the multi-level feedback queue, why different queues have different timeslices, how do threads move between these queues... Can you contrast this with the O(1) scheduler? Do you understand what were the problems with the O(1) scheduler which led to the CFS?
 
 #### Motivation for the multi-level feedback queue (MLFQ)
 
@@ -188,13 +188,13 @@ CFS keeps its runnable tasks in a **red-black tree** (a self-balancing binary tr
 2. Periodically increment the running task's vruntime and compare it to the leftmost node's. If the running task still has the smallest vruntime it keeps running; otherwise it is preempted and reinserted into the tree at its new position.
 3. Priority is encoded in the **rate** at which vruntime advances: for low-priority tasks vruntime advances quickly (time passes "faster," so they are checked and preempted sooner); for high-priority tasks it advances slowly (they run longer before being overtaken).
 
-Selection is O(1); insertion is O(log n) in the number of runnable tasks. That log(n) insertion cost is the theoretical limit on scaling CFS to very large task counts.
+Selection is O(1); insertion is O(log n) in the total number of tasks in the system. That log(n) insertion cost is the theoretical limit on scaling CFS to very large task counts.
 
 ### Thinking about Fedorova's paper on scheduling for chip multi processors, what's the goal of the scheduler she's arguing for? What are some performance counters that can be useful in identifying the workload properties (compute vs. memory bound) and the ability of the scheduler to maximize the system throughput?
 
 #### The goal of the scheduler
 
-Fedorova argues that chip multithreading (CMT) hardware, which combines chip multiprocessing with hardware multithreading so that several threads share a core's pipeline, needs a scheduler that **maximizes system throughput by managing resource contention**, not just by balancing load. On such a platform each hardware context looks to the OS like a logical processor, and co-scheduled threads compete for the shared **processor pipeline**. The scheduler's job is to assign threads to contexts so that pipeline contention is minimized and overall utilization is maximized. The headline simulation result is that a CMT-aware scheduler can improve application performance by as much as a factor of two over a naive one.
+Fedorova argues that chip multithreading (CMT) hardware, which combines chip multiprocessing with hardware multithreading so that several threads share a core's pipeline, needs a scheduler that **maximizes system throughput by managing resource contention**, not just by balancing load. On such a platform each hardware context looks to the OS like a logical processor, and co-scheduled threads compete for the shared **processor pipeline**. The scheduler's job is to assign threads to contexts so that pipeline contention is minimized and overall utilization is maximized. (Paper, Fedorova et al.: the headline simulation result is that a CMT-aware scheduler can improve application performance by as much as a factor of two over a naive one.)
 
 The key insight is that the best mix co-schedules threads with **complementary** resource needs. Co-scheduling two compute-bound threads makes them contend for the pipeline and each degrades (roughly by half in the two-thread model) while the memory system sits idle. Co-scheduling two memory-bound threads leaves the pipeline idle while both wait on memory. A **mix of one compute-bound and one memory-bound thread** keeps both the pipeline and the memory system busy and is the best case.
 
@@ -202,22 +202,22 @@ The key insight is that the best mix co-schedules threads with **complementary**
 
 Utilization is usually read through **instructions per cycle (IPC)**. Under the lecture's model each thread can issue one instruction per cycle, so per core the maximum IPC is 1; a compute-bound thread approaches IPC = 1, and a memory-bound thread, stalled on memory, has an IPC well below 1. In the four-core experiment the aggregate IPC maxes out at 4.
 
-Fedorova proposes using **cycles per instruction (CPI)**, the reciprocal of IPC, as the scheduling signal. A compute-bound thread completes an instruction almost every cycle, so its CPI is about 1; a memory-bound thread stalls for many cycles per instruction, so its CPI is high. (Lecture framing: the lecture says Fedorova "speculates" that CPI is useful and frames high CPI as "takes many cycles, therefore memory-bound"; the paper is more assertive, saying mean CPI "gives us a useful window into the dynamic instruction mix" and "nicely captures average instruction delay," and reasons through single-threaded CPI, the CPI a thread would show on a dedicated core, where a high value means low pipeline resource demand.)
+Fedorova proposes using **cycles per instruction (CPI)**, the reciprocal of IPC, as the scheduling signal. A compute-bound thread completes an instruction almost every cycle, so its CPI is about 1; a memory-bound thread stalls for many cycles per instruction, so its CPI is high. (Lecture framing: the lecture says Fedorova "speculates" that CPI is useful and frames high CPI as "takes many cycles, therefore memory-bound"; Paper, Fedorova et al.: more assertive, saying mean CPI "gives us a useful window into the dynamic instruction mix" and "nicely captures average instruction delay," and reasons through single-threaded CPI, the CPI a thread would show on a dedicated core, where a high value means low pipeline resource demand.)
 
 #### The CPI experiment and its conclusion
 
-Because the real processor has no CPI counter, she uses a simulator modeling 4 cores with 4 hardware contexts each, 16 contexts total. (Lecture framing: the lecture calls this a "4-way SMT" platform; the paper actually models fine-grained multithreading, one set of functional units interleaving threads with a context switch every cycle and at most one instruction issued per cycle, and explicitly names SMT as the design it did *not* build. The course treats SMT, hyperthreading, and CMT as synonyms.) She builds a synthetic workload of 16 threads with CPIs of 1, 6, 11, and 16 (four of each), where CPI = 1 is the most compute-bound and CPI = 16 the most memory-bound, and runs four schedules that place different mixes on each core, using IPC as the metric.
+Because the real processor has no CPI counter, she uses a simulator modeling 4 cores with 4 hardware contexts each, 16 contexts total. (Lecture framing: the lecture calls this a "4-way SMT" platform; Paper, Fedorova et al.: it actually models fine-grained multithreading, one set of functional units interleaving threads with a context switch every cycle and at most one instruction issued per cycle, and explicitly names SMT as the design it did *not* build.) The course treats SMT, hyperthreading, and CMT as synonyms. She builds a synthetic workload of 16 threads with CPIs of 1, 6, 11, and 16 (four of each), where CPI = 1 is the most compute-bound and CPI = 16 the most memory-bound, and runs four schedules that place different mixes on each core, using IPC as the metric.
 
-The result: schedules that spread high- and low-CPI threads **across** cores (a well-mixed assignment) kept the pipeline well utilized and produced high IPC, while schedules that clustered similar-CPI threads onto the same core produced low IPC. (The paper quantifies this: the balanced schedules perform about twice as well as the fully clustered one and about 1.5 times better than the partially clustered one. In the bad schedules the cores packed with CPI-1 threads are saturated while the cores holding memory-bound threads contribute almost nothing to throughput.) The exam-facing conclusion is that **scheduling threads with mixed CPI values yields higher platform utilization**.
+The result: schedules that spread high- and low-CPI threads **across** cores (a well-mixed assignment) kept the pipeline well utilized and produced high IPC, while schedules that clustered similar-CPI threads onto the same core produced low IPC. (Paper, Fedorova et al.: the balanced schedules perform about twice as well as the fully clustered one and about 1.5 times better than the partially clustered one. In the bad schedules the cores packed with CPI-1 threads are saturated while the other cores are under-utilized.) The exam-facing conclusion is that **scheduling threads with mixed CPI values yields higher platform utilization**.
 
-She then asks whether this synthetic spread is realistic by profiling real benchmarks. The exam-facing takeaway is that **real CPI values cluster together rather than spreading out the way the synthetic workload did, so CPI by itself may not be an instructive scheduling metric in practice**. (Lecture framing: this pessimistic conclusion, and the "2.5 to 4.5" clustering range, come from the lecture graphic. The paper itself is optimistic: it says measured CPI "can vary by an order of magnitude among applications," that near-term CPI is predictable from recent behavior, and that building a CPI-balancing scheduler "should be a simple matter of engineering." The paper's own stated limitations are different: CPI does not reveal *which* resource threads contend for, such as the cache hierarchy or a floating-point unit, and CPI measured on an already-busy system is perturbed by existing contention. The lecture's skeptical conclusion is retained as the exam answer because it aligns with Fedorova's later USENIX 2005 work, which found L2 cache contention, not pipeline CPI, to be the dominant effect.)
+She then asks whether this synthetic spread is realistic by profiling real benchmarks. The exam-facing takeaway is that **real CPI values cluster together rather than spreading out the way the synthetic workload did, so CPI by itself may not be an instructive scheduling metric in practice**. (Lecture framing: this pessimistic conclusion, and the "2.5 to 4.5" clustering range, come from the lecture graphic; Paper, Fedorova et al.: optimistic, it says measured CPI "can vary by an order of magnitude among applications," that near-term CPI is predictable from recent behavior, and that building a CPI-balancing scheduler "should be a simple matter of engineering." The paper's own stated limitations are different: CPI does not reveal *which* resource threads contend for, such as the cache hierarchy or a floating-point unit, and CPI measured on an already-busy system is perturbed by existing contention.) The lecture's skeptical conclusion is retained as the exam answer because it aligns with Fedorova's later USENIX 2005 work, which found L2 cache contention, not pipeline CPI, to be the dominant effect.
 
 #### Useful performance counters
 
 Modern platforms expose **hardware counters** that update as the processor executes, read through interfaces such as oprofile or the Linux `perf` tool. The ones useful for classifying a thread and judging utilization:
 
 - **IPC** (or its reciprocal CPI): near 1 (IPC) suggests compute-bound; low IPC / high CPI suggests memory-bound.
-- **Cache miss counters** (L1, L2, last-level cache): a high LLC miss rate implies heavy memory traffic, so the thread is memory-bound; few misses suggest compute-bound.
+- **Cache miss counters** (L1, L2, last-level cache): a high LLC miss rate suggests the thread is memory-bound, though it can instead mean a cold cache after the thread has entered a new execution phase; few misses suggest compute-bound.
 - **Power/energy counters**: additional input for the scheduler's model.
 
 Software sleep-time tracking, used earlier to tell interactive from compute-bound tasks, does not work here: a thread stalled on memory is not sleeping on a software queue, and software accounting is far too slow when a hardware context switch costs only cycles. Schedulers therefore combine several counters, often through platform-specific models trained on known workloads, to pick a thread mix that keeps all system components busy with minimal mutual interference.
@@ -260,7 +260,7 @@ A process's virtual address space can be far larger than physical DRAM. On a 32-
 
 #### Demand paging
 
-Under demand paging the OS keeps a page in DRAM only while it is being used and **swaps idle pages out to disk**. Swapping a page out clears its **present bit** to 0. A later access to that page makes the MMU trap into the kernel; the OS allocates a free frame, reads the page back from disk, and re-establishes the mapping. The restored page's physical address is generally **different** from where it lived before, which is exactly why virtual addresses are used. After the page is back, the program counter is reset to the trapping instruction and the reference completes successfully.
+Under demand paging the OS **swaps pages out to disk** when the amount of occupied memory reaches a threshold (and CPU usage is low enough), choosing pages that have not been used recently. Swapping a page out clears its **present bit** to 0. A later access to that page makes the MMU trap into the kernel; the OS allocates a free frame, reads the page back from disk, and re-establishes the mapping. The restored page's physical address is generally **different** from where it lived before, which is exactly why virtual addresses are used. After the page is back, the program counter is reset to the trapping instruction and the reference completes successfully.
 
 #### Page replacement
 
@@ -283,9 +283,9 @@ In the simplest single-level scheme, the virtual address is a **VPN** plus an **
 
 #### Why the TLB matters
 
-A single-level page table already requires **two memory accesses per reference**: one to read the page table entry, one for the data itself. With a hierarchical (multi-level) page table the number of accesses grows with the number of levels, so a four-level table needs four page-table reads before the data read. The TLB collapses all of that into a **single lookup** on a hit. Despite being small, the TLB achieves a high hit rate because memory references exhibit strong **temporal and spatial locality**. On modern x86 cores the TLB is split, for example a 64-entry data TLB and a 128-entry instruction TLB per core, backed by a shared second-level TLB of around 512 entries.
+A single-level page table already requires **two memory accesses per reference**: one to read the page table entry, one for the data itself. With a hierarchical (multi-level) page table the number of accesses grows with the number of levels, so a four-level table needs four page-table reads before the data read. The TLB collapses all of that into a **single lookup** on a hit. Despite being small, the TLB achieves a high hit rate because memory references exhibit strong **temporal and spatial locality**. On modern x86 cores the TLB is split, for example a 64-entry data TLB and a 128-entry instruction TLB per core, backed by a shared 512-entry second-level TLB.
 
-### Do you understand the relationships between the size of an address, the size of the address space, the size of a page, the size of the page table…
+### Do you understand the relationships between the size of an address, the size of the address space, the size of a page, the size of the page table...
 
 #### The general relationships
 
@@ -294,7 +294,7 @@ Let the address be **X bits** and the page offset be **Y bits** (so the page siz
 - **Addressable space** = 2^X bytes (the number of distinct addresses).
 - **Offset / page size**: a Y-bit offset gives a page of **2^Y bytes**.
 - **Number of VPNs / page table entries** = 2^X / 2^Y = **2^(X-Y)** entries, because the top (X - Y) bits form the VPN and a flat page table needs one entry per VPN.
-- **Page table size** = number of entries × entry size = **2^(X-Y) × (entry size)**.
+- **Page table size** = number of entries x entry size = **2^(X-Y) x (entry size)**.
 
 #### The 32-bit worked example
 
@@ -303,11 +303,11 @@ With X = 32 and 4KB pages (Y = 12):
 - Addressable space = 2^32 = 4GB.
 - Entries = 2^(32-12) = 2^20 (about one million).
 - Each entry holds a PFN plus flag bits and is **4 bytes** on a 32-bit architecture.
-- Page table size = 2^20 × 4 bytes = **4MB**, per process.
+- Page table size = 2^20 x 4 bytes = **4MB**, per process.
 
 #### The 64-bit blow-up
 
-With X = 64, 4KB pages, and 8-byte entries, a flat table would need 2^3 × 2^64 / 2^12 = 2^55 bytes, on the order of **32PB per process**. This is why flat tables are abandoned for hierarchical ones. Two points to keep in mind: a page table is a **per-process** structure, and a real process uses only a small fraction of its theoretical address space, yet a flat table reserves an entry for **every** VPN whether used or not, which is precisely the waste hierarchical tables eliminate.
+With X = 64, 4KB pages, and 8-byte entries, a flat table would need 2^3 x 2^64 / 2^12 = 2^55 bytes, on the order of **32PB per process**. This is why flat tables are abandoned for hierarchical ones. Two points to keep in mind: a page table is a **per-process** structure, and a real process uses only a small fraction of its theoretical address space, yet a flat table reserves an entry for **every** VPN whether used or not, which is precisely the waste hierarchical tables eliminate.
 
 ### Do you understand the benefits of hierarchical page tables? For a given address format, can you workout the sizes of the page table structures in different layers?
 
@@ -326,11 +326,11 @@ Split the virtual address into index fields, one per level, plus the offset. Eac
 - The **directory** holds 2^12 entries, so the OS can maintain up to 2^12 inner page tables.
 - Each **inner page table** holds 2^10 entries.
 - Each inner entry addresses 2^10 bytes (the page size).
-- Therefore each inner page table maps 2^10 × 2^10 = 2^20 bytes = **1MB** of the address space. Any unallocated 1MB-aligned gap needs no inner table at all.
+- Therefore each inner page table maps 2^10 x 2^10 = 2^20 bytes = **1MB** of the address space. Any unallocated 1MB-aligned gap needs no inner table at all.
 
 **Example B (the multi-level reduction, 12-bit addresses, offset 6):** address split 2 / 4 / 6, so pages are 2^6 = 64 bytes. A flat table with a 6-bit VPN needs 2^6 = 64 entries no matter what is used. In the two-level scheme each of the 4 outer entries covers 2^(4+6) = 1KB of the space. For a process using only the first 2KB and the last 1KB, one outer entry maps to an unallocated 1KB region and needs no inner table; the other three inner tables hold 2^4 = 16 entries each, for 48 entries total, a 25% reduction over the flat 64-entry table.
 
-The procedure generalizes: for each level, entries = 2^(index bits for that level); the coverage of one entry at a given level = (page size) × the product of the entry counts of all levels below it.
+The procedure generalizes: for each level, entries = 2^(index bits for that level); the coverage of one entry at a given level = (page size) x the product of the entry counts of all levels below it.
 
 ## P3L3
 
@@ -340,7 +340,7 @@ The procedure generalizes: for each level, entries = 2^(index bits for that leve
 
 Separate processes each have their own virtual address space, backed by their own page tables, so by default a physical page that belongs to one process is unreachable from another. To let two or more processes share memory, the OS has to make a region of physical memory reachable from each participating address space. Concretely:
 
-1. Allocate (or reuse) a set of physical frames to serve as the shared region. These frames do not have to be physically contiguous.
+1. Allocate a set of physical frames to serve as the shared region. These frames do not have to be physically contiguous.
 2. For each participating process, install page table entries that map some range of that process's virtual addresses onto those same physical frames.
 3. Enforce the usual protection bits (read/write/execute) and keep the mapping valid until the processes detach or the segment is destroyed.
 
@@ -487,12 +487,12 @@ The value of higher-level constructs is **expressiveness** and the **reduced opp
 
 #### The limits of mutexes and condition variables
 
-- **Limited expressive power**: a mutex encodes only a binary state, locked or unlocked. It cannot by itself express a richer synchronization condition such as "many readers may proceed together, but a writer needs exclusive access." In the readers/writer problem we had to introduce a *proxy variable* to track the application's real state (number of active readers, whether a writer is present) because the mutex alone could not represent it.
+- **Limited expressive power**: mutexes and condition variables cannot easily express arbitrary synchronization conditions such as "many readers may proceed together, but a writer needs exclusive access." The readers/writer problem needed **helper variables** to express its invariants (number of active readers, whether a writer is present), and priority restrictions need helper variables too, because mutexes and condition variables lack the expressive power to represent them.
 - **Easy to misuse**: it is easy to lock or unlock the wrong mutex, or to signal the wrong condition variable. These mistakes are not obviously wrong at the call site and compile fine. The programmer is responsible for every lock, unlock, wait, and signal, and every one is a chance to introduce a bug.
 
 #### Why reader/writer locks are more powerful
 
-A reader/writer lock (also called a shared/exclusive lock) lets the developer declare only the *kind* of access intended, read or write, and the lock enforces the correct policy behind the scenes: readers share concurrently, writers get exclusive access. The developer no longer hand-builds and hand-maintains proxy counters, so the application semantics are expressed directly in higher-level code with less room for error.
+A reader/writer lock (also called a shared/exclusive lock) lets the developer declare only the *kind* of access intended, read or write, and the lock enforces the correct policy behind the scenes: readers share concurrently, writers get exclusive access. The developer no longer hand-builds and hand-maintains helper variables, so the application semantics are expressed directly in higher-level code with less room for error.
 
 (Semantics vary across implementations: whether a recursively acquired read lock is released all at once or one level at a time; whether a reader may upgrade to a writer in place or must release and re-contend; and whether an arriving reader is admitted when a writer is already waiting, which couples lock state to thread priority and scheduling policy.)
 
@@ -512,7 +512,7 @@ The evolution is driven by three performance metrics, which trade off against on
 - **Delay (waiting time)**: time between a lock being released and a waiter acquiring it.
 - **Contention**: traffic generated on the shared bus or interconnect by the atomic memory references and the resulting cache-coherence traffic. Contention slows every CPU's memory access and, worst of all, slows the acquisition and release of the lock itself.
 
-Background that drives the contention behavior: atomic instructions bypass the cache and go to the memory controller, and executing an atomic triggers cache-coherence traffic (invalidate or update) across all cached copies of the location regardless of whether the value changed. Under write-invalidate coherence, that means every atomic forces other spinners to miss and re-fetch. (Lecture framing: atomics "always bypass the cache"; the paper says this is a teaching simplification, because real implementations cooperate with the cache, for example taking the dirty value from the holding cache under write-back invalidation; what is genuinely unavoidable is the arbitration and the coherence traffic, with the invalidation happening before the instruction executes even if the value does not change.)
+Background that drives the contention behavior: atomic instructions bypass the cache and go to the memory controller, and executing an atomic triggers cache-coherence traffic (invalidate or update) across all cached copies of the location regardless of whether the value changed. Under write-invalidate coherence, that means every atomic forces other spinners to miss and re-fetch. (Lecture framing: atomics "always bypass the cache"; Paper, Anderson: a teaching simplification, because real implementations cooperate with the cache, for example taking the dirty value from the holding cache under write-back invalidation; what is genuinely unavoidable is the arbitration and the coherence traffic, with the invalidation happening before the instruction executes even if the value does not change.)
 
 Each stage below fixes a specific flaw in the previous one.
 
@@ -529,7 +529,7 @@ Every spin iteration executes the atomic.
 
 - **Latency**: optimal. A single atomic acquires a free lock; nothing can beat it.
 - **Delay**: good. The thread spins directly on the atomic, so the very next instruction after the lock is freed detects it and acquires it.
-- **Contention**: poor. Because every spinning processor issues an atomic on every iteration, and atomics bypass the cache and go to memory, the processors continuously hammer the memory module and the shared bus, delaying all other CPUs. (Paper detail: the holder must itself contend with the spinners for exclusive access just to release the lock, so even the release is delayed behind doomed atomics.)
+- **Contention**: poor. Because every spinning processor issues an atomic on every iteration, and atomics bypass the cache and go to memory, the processors continuously hammer the memory module and the shared bus, delaying all other CPUs. (Paper, Anderson: the holder must itself contend with the spinners for exclusive access just to release the lock, so even the release is delayed behind doomed atomics.)
 
 **Problem to fix**: the constant stream of atomics from every spinner saturates the interconnect.
 
@@ -542,7 +542,7 @@ spinlock_lock(lock) {
 }
 ```
 
-The idea (attributed in the paper to Segall and Rudolph, not to Anderson) is to separate the *test* from the atomic. The first clause reads the lock's cached copy; with short-circuit evaluation the atomic (`test_and_set`) runs only when the cached read shows the lock free. While the lock stays busy, spinners loop on their local caches without touching memory.
+The idea is to separate the *test* from the atomic. (Paper, Anderson: the spin-on-read idea is credited to Segall and Rudolph, who call it spinning on test-and-test-and-set.) The first clause reads the lock's cached copy; with short-circuit evaluation the atomic (`test_and_set`) runs only when the cached read shows the lock free. While the lock stays busy, spinners loop on their local caches without touching memory.
 
 - **Latency and delay**: slightly worse than pure test-and-set, because of the extra read step.
 - **Contention**: it depends on the coherence strategy.
@@ -550,7 +550,7 @@ The idea (attributed in the paper to Segall and Rudolph, not to Anderson) is to 
   - Write-update coherence: improved, since spinners read updated cached values; but the moment the lock is freed, all processors see it free at once and all rush to atomic simultaneously.
   - Write-invalidate coherence: still bad. Executing one atomic invalidates every cached copy even if the value did not change, forcing every other spinner to miss and go to memory to re-read; so each atomic from any processor cascades into misses on all the others.
 
-**Problem to fix**: everyone sees the release at the same instant and stampedes the atomic (the "all rush at once" / thundering-herd behavior), and under write-invalidate the cascade of invalidations and re-reads is severe. (Lecture framing: this is presented as a steady-state property of write-invalidate; the paper's sharper claim is a *transient* one, a "quiesce" period after each release during which some processors have pending read misses and others have pending doomed test-and-sets, each failing test-and-set re-invalidating every copy. For a *short* critical section this transient dominates, so spin-on-read "has almost as much effect on busy processors as spinning directly on a test-and-set"; the paper measured time-to-quiesce growing linearly with the number of spinners.)
+**Problem to fix**: everyone sees the release at the same instant and stampedes the atomic (the "all rush at once" / thundering-herd behavior), and under write-invalidate the cascade of invalidations and re-reads is severe. (Lecture framing: the lecture describes what happens on release, not a steady state; Paper, Anderson: the sharper claim is a *transient* one, a "quiesce" period after each release during which some processors have pending read misses and others have pending doomed test-and-sets, each failing test-and-set re-invalidating every copy. For a *short* critical section this transient dominates, so spin-on-read "has almost as much effect on busy processors as spinning directly on a test-and-set"; the paper measured time-to-quiesce growing linearly with the number of spinners.)
 
 #### Stage 3: Delay-based locks
 
@@ -581,7 +581,7 @@ When a spinner sees the lock free, it waits before attempting the atomic. By the
 
 **Choosing the delay:**
 - **Static delay**: a fixed value derived from, for example, the CPU id. Simple, and under heavy load it spreads atomics out well. But under light load it imposes pointless waits; a high-id CPU may wait a long time even with no contention.
-- **Dynamic delay**: each thread picks a random delay from a range that grows with *perceived* contention, estimated by counting failed `test_and_set` operations (more failures imply more contention). Adapts to actual load, so it avoids the unnecessary waits static delay suffers under light load. (Paper framing: the lecture does not mention that these schemes are borrowed from network arbitration. The paper models a lock as a CSMA network: static slots come from Aloha, dynamic backoff from Ethernet's exponential backoff, which doubles a processor's mean delay on each collision, caps the mean delay at the number of processors, and restarts each visit at half the previous delay. The paper also warns the analogy is imperfect, because a network collision aborts all parties equally while a test-and-set "collision" still lets one processor win.)
+- **Dynamic delay**: each thread picks a random delay from a range that grows with *perceived* contention, estimated by counting failed `test_and_set` operations (more failures imply more contention). Adapts to actual load, so it avoids the unnecessary waits static delay suffers under light load. (Lecture framing: the lecture does not mention that these schemes are borrowed from network arbitration; Paper, Anderson: models a lock as a CSMA network: statically assigned slots come from BRAM, static mean delays between references from Aloha, and dynamic delay from Ethernet's exponential backoff, which doubles a processor's mean delay on each collision, caps the mean delay at the number of processors, and restarts each visit at half the previous delay. The paper also warns the analogy is imperfect, because a network collision aborts all parties equally while a test-and-set "collision" still lets one processor win.)
 
 **Problem to fix**: the delay trades contention for delay. It reduces wasted atomics but introduces artificial waiting time, and it still does nothing about the fundamental fact that, under invalidation, each release still forces every spinner to miss and re-read to learn the lock is free.
 
@@ -590,7 +590,7 @@ When a spinner sees the lock free, it waits before attempting the atomic. By the
 Instead of letting all spinners share one lock variable and all see the release at once, give each waiter its *own* location to spin on, and have the releaser signal exactly one successor.
 
 Structure:
-- An array of flags with up to `n` entries, one per thread; each entry is either `has_lock` or `must_wait`.
+- An array of flags with up to `n` entries, one per processor; each entry is either `has_lock` or `must_wait`.
 - A pointer to the current holder's slot (value `has_lock`) and a `queuelast` pointer to the last slot in line.
 - On arrival a thread atomically fetches a "ticket" (its position) and advances `queuelast`. Because several threads may arrive together, the increment of `queuelast` must be atomic, which requires `read_and_increment`.
 - Each thread's flag entry acts as its private lock: it spins while its entry reads `must_wait`.
@@ -610,17 +610,19 @@ spinlock_unlock(flags, myplace) {
 }
 ```
 
+(Lecture framing: the narration has the holder reset its own slot to `must_wait` on release, just before signaling the next one, while the lecture slide, like the code above, resets it right after acquiring; Paper, Anderson: the slot is reset inside the lock routine, right after the spin ends.) Either works.
+
 - **Latency**: worst of the set. `read_and_increment` is a more complex atomic than `test_and_set` and costs more cycles, plus some extra per-acquire bookkeeping.
 - **Delay**: good. The releaser directly signals the one next-in-line thread, which is already spinning on exactly that flag.
 - **Contention**: best of all the designs. The atomic (`read_and_increment` on `queuelast`) executes once up front on arrival, not on every spin. Each thread spins on a *different* variable, so when the holder writes one successor's flag, only that one cache entry is affected; the other spinners' caches are not invalidated. The invalidation traffic for the atomic variable is unrelated to the flag each thread spins on.
 
 Conditions for the contention win: the architecture must be cache coherent (otherwise spinning on a flag means remote references), and each flag must sit on its own cache line (otherwise writing one flag invalidates the whole line and disturbs every spinner sharing it).
 
-Costs: it needs `read_and_increment`, which is less commonly available than `test_and_set`, and it uses `O(n)` space, one slot per thread, where every other lock needed a single location.
+Costs: it needs `read_and_increment`, which is less commonly available than `test_and_set`, and it uses `O(n)` space, one slot per processor, where every other lock needed a single location.
 
 **Problem fixed**: the queueing lock eliminates both the stampede and the invalidation cascade that plagued test-and-test-and-set under write-invalidate. Only one thread is signaled per release, and private per-thread spin locations mean a release does not invalidate every waiter's cache line.
 
-(Paper caveats the lecture leaves out: queueing makes the *preemption* problem worse, because if any queued spinner is preempted, every thread behind it must wait when it reaches the front until it is rescheduled, which can force lock-step behavior for small, frequently accessed critical sections; and queueing makes it hard to wait on several locks at once, since a thread can be in only one queue. The design was devised independently by Graunke at Sequent. On the measurement platform, the Sequent Symmetry, which has an atomic increment but no read-and-increment that returns the old value, Anderson's own measured queueing lock had to protect its sequence number with a separate backoff lock.)
+(Paper, Anderson: caveats the lecture leaves out. Queueing makes the *preemption* problem worse, because if any queued spinner is preempted, every thread behind it must wait when it reaches the front until it is rescheduled, which can force lock-step behavior for small, frequently accessed critical sections; and queueing makes it hard to wait on several locks at once, since a thread can be in only one queue. The design was devised independently by Graunke at Sequent. On the measurement platform, the Sequent Symmetry, which has an atomic increment but no read-and-increment that returns the old value, Anderson's own measured queueing lock had to protect its sequence number with a separate backoff lock.)
 
 #### Summary table
 
@@ -629,14 +631,14 @@ Costs: it needs `read_and_increment`, which is less commonly available than `tes
 | Test-and-set | Best | Good | Poor: every spinner issues an atomic every iteration | Baseline |
 | Test-and-test-and-set | Slightly worse | Slightly worse | Varies; bad under write-invalidate | Stops spinning on the atomic; but all see release at once and invalidation cascades |
 | Delay (after free / after each ref) | Okay | Worse (artificial wait) | Much improved | Spreads out atomics to kill the stampede; trades delay for contention; "after each ref" also works on NCC |
-| Queueing (array lock) | Worst (needs read_and_increment) | Good (direct successor signal) | Best, scales flat with processors | Per-thread private spin location kills the invalidation cascade and stampede; needs cache coherence, separate cache lines, O(n) space |
+| Queueing (array lock) | Worst (needs read_and_increment) | Good (direct successor signal) | Best; most scalable | Per-thread private spin location kills the invalidation cascade and stampede; needs cache coherence, separate cache lines, O(n) space |
 
 #### Empirical results (Sequent Symmetry, 20 processors, cache coherent with write-invalidate)
 
-- Under **high load**: the queueing lock performs best and is the most scalable; overhead stays flat as processors are added. Test-and-test-and-set performs worst, because write-invalidate forces on the order of `N^2` memory references to maintain coherence per release (on the order of `N` spinners each read-miss and then atomic, and each atomic re-invalidates all `N` copies). Among delay locks, static beats dynamic slightly (dynamic has randomness and more collisions), and delaying after each reference is slightly better than after each release.
+- Under **high load**: the queueing lock performs best and is the most scalable: as more processors and load are added it performs best. Test-and-test-and-set performs worst, because write-invalidate forces on the order of `N^2` memory references to maintain coherence per release (on the order of `N` spinners each read-miss and then atomic, and each atomic re-invalidates all `N` copies). Among delay locks, static beats dynamic slightly (dynamic has randomness and more collisions), and delaying after each reference is slightly better than after each release.
 - Under **light load**: test-and-test-and-set does well thanks to its low latency; dynamic delay beats static (static imposes needless large delays at low contention); the queueing lock does *worst*, because of its higher latency (complex atomic plus extra per-acquire work).
 
-(Lecture framing of the headline result names the queueing lock as the winner under contention and stops there; the paper's own conclusion names *two* joint winners: backoff and queueing both scale well, with backoff better under no contention, lower latency and simpler, and queueing better when there are waiting processors, because it parallelizes the handoff by doing the atomic's work before the lock is released. The `N^2` figure is the lecture's and the course quiz's accounting; the paper states the same cascade in prose and notes that fixing any single cause still leaves bus activity growing linearly with the number of processors, with the quadratic total being the product of the per-release and per-invalidation linear factors. The comparison figure plots spin-waiting *overhead*, elapsed minus a simulated ideal, not raw time, and pure test-and-set is omitted from it because it would be off the chart.)
+(Lecture framing: the headline result names the queueing lock as the winner under contention and stops there, and the `N^2` figure is the lecture's and the course quiz's accounting; Paper, Anderson: the paper's own conclusion names *two* joint winners: backoff and queueing both scale well, with backoff better under no contention, lower latency and simpler, and queueing better when there are waiting processors, because it parallelizes the handoff by doing the atomic's work before the lock is released. The paper states the same cascade in prose and notes that fixing any single cause still leaves bus activity growing linearly with the number of processors. The comparison figure plots spin-waiting *overhead*, elapsed minus a simulated ideal, not raw time, and pure test-and-set is omitted from it.)
 
 ## P3L5
 
@@ -650,7 +652,7 @@ Every device exposes a small set of control registers that the CPU can read and 
 - **Data registers**: used to move data into and out of the device.
 - **Status registers**: the CPU reads these to learn what the device is doing.
 
-Inside the device sits a microcontroller (the device's own CPU), on-device memory, and whatever device-specific logic the hardware needs (for example analog-to-digital conversion, or a PHY chip to drive the physical network medium).
+Inside the device sits a microcontroller (the device's own CPU), on-device memory, and whatever device-specific logic the hardware needs (for example analog-to-digital conversion, or chips to interact with the physical network medium).
 
 The CPU reaches these registers in one of two ways. Under **memory-mapped I/O**, the device registers appear at specific physical memory addresses; the integrated PCI controller recognizes accesses to that address range and routes them to the device. The range reserved for a device is set by its Base Address Registers (BARs), configured at boot per the PCI protocol. Alternatively x86 provides dedicated `in`/`out` instructions that name an **I/O port** and a value: the **I/O port model**.
 
@@ -660,7 +662,7 @@ The CPU reaches these registers in one of two ways. Under **memory-mapped I/O**,
 2. The kernel runs the in-kernel stack for that device and does any preprocessing needed to turn the user's buffer into something the device expects (for example, forming a TCP/IP packet from a raw buffer).
 3. The kernel invokes the appropriate **device driver**, the device-specific software component responsible for all access, management, and control of that device.
 4. The driver configures the request on the device using PIO or DMA (details below), writing commands into the command registers and arranging for the data to reach the device.
-5. The device performs the actual request (the NIC puts the packet on the wire; the disk writes the block).
+5. The device performs the actual request (the NIC puts the packet on the wire; the disk performs the block read).
 
 The driver is responsible for making sure that commands and data are neither overwritten nor dropped before the device consumes them.
 
@@ -715,7 +717,7 @@ From the VFS perspective a directory is itself just a file whose contents name t
 
 #### ext2 on disk
 
-The first block of an ext2 partition is reserved for booting. The rest is divided into **block groups** (whose size has no relation to the disk's physical geometry). Each block group holds a super block (inode count, block count, start of free blocks), a group descriptor (bitmaps, free-inode count, directory count, the last tracked so ext2 can balance directories across groups), bitmaps for quickly finding free inodes and blocks, the inode table (each inode a 128-byte structure describing exactly one file), and finally the data blocks.
+The first block of an ext2 partition is not used by Linux and is often used to boot the system. The rest is divided into **block groups** (whose size has no relation to the disk's physical geometry). Each block group holds a super block (inode count, block count, start of free blocks), a group descriptor (the location of the bitmaps, the free-inode count, the directory count, the last tracked so ext2 can balance directories across groups), bitmaps for quickly finding free inodes and blocks, the inodes (each a 128-byte structure describing exactly one file), and finally the data blocks.
 
 #### Addressing math: how data structures bound file and filesystem size
 
@@ -747,7 +749,7 @@ Block size amplifies this disproportionately. Move to 8 KB blocks and each block
 max file size = (12 + 2048 + 2048^2 + 2048^3) * 8 KB  ~= 64 TB
 ```
 
-An eightfold increase in block size raises the ceiling far more than eightfold, because the gain compounds through each indirect level (the top level contributes roughly (block/pointer)^3 blocks).
+An eightfold increase in block size raises the ceiling far more than eightfold, because the gain compounds through the indirect levels.
 
 **The tradeoff.** Indirect pointers keep the inode small while addressing large files, but they cost extra disk accesses. With no indirection, reading a block is at most two accesses (inode, then block). A double-indirect block costs four (inode, two levels of pointer blocks, then the data block). The total filesystem size, in turn, is bounded by how many blocks and inodes the superblock and bitmaps can address across all block groups.
 
@@ -758,9 +760,9 @@ The disk is the slow component, and the single slowest thing it does is move the
 | Optimization | What it does | Effect on device access |
 |---|---|---|
 | **Buffer cache** | Keep blocks in main memory; serve reads and absorb writes there, flushing to disk only periodically (`fsync` forces it) | Cuts the *number* of disk accesses; the cost of one physical write is amortized across the many writes that hit the cache in between |
-| **I/O scheduling** | Reorder queued requests so the head services them in a sweep instead of backtracking | Reduces *head movement* by turning random access into (closer to) sequential access. Example: head at block 7, requests for 25 then 17 arrive; the scheduler writes 17 on the way to 25 rather than overshooting and backtracking |
+| **I/O scheduling** | Reorder queued requests so the head services them in a sweep instead of backtracking | Reduces *head movement* by turning random access into (closer to) sequential access. Example: head at position 15, requests for 25 then 17 arrive; the scheduler writes 17 on the way to 25 rather than overshooting and backtracking |
 | **Prefetching** | On a request for block N, also read the next few logical blocks (the inode tells us which) into the cache | Trades extra disk *bandwidth* now for fewer future accesses; relies on spatial locality so later reads become cache hits instead of disk trips. Example: read 17 also pulls in 18 and 19 |
-| **Journaling** | Write a compact description of each update (block, offset, content) to a sequential log, then apply the logged writes to their real locations periodically | Turns many scattered random writes into fast sequential log appends, and preserves crash consistency: data buffered in memory for the I/O scheduler would be lost on a crash, but the log survives. ext3/ext4 use this |
+| **Journaling** | Write a compact description of each update (block, offset, content) to a sequential log, then apply the logged writes to their real locations periodically | Avoids many random disk accesses by writing a description of each update to a log instead of the proper location; logged writes are periodically applied to their real locations. Addresses the risk that data buffered in memory for the I/O scheduler is lost on a crash. ext3/ext4 use this |
 
 Each one changes the device-access profile in a specific way: caching and prefetching reduce how *often* we go to disk (caching by reuse, prefetching by anticipation), I/O scheduling reduces how *expensive* each batch of accesses is by minimizing seeks, and journaling reduces random-write cost while adding durability. They compose: a block can be served from the buffer cache, and on a miss the scheduler and prefetcher together keep the resulting disk trip cheap.
 
@@ -778,13 +780,13 @@ The textbook definition is Popek and Goldberg's: a virtual machine is "an effici
 - *Performance*: guest code runs at worst with minor slowdown; the goal is near-native speed.
 - *Safety/isolation*: the VMM is in complete control of the resources and keeps VMs from interfering with each other.
 
-(Lecture framing: fidelity / performance / safety. The paper, Popek & Goldberg 1974, names these *equivalence*, *efficiency*, and *resource control*, and defines them precisely. Equivalence means any program has an effect identical to running on the bare machine, with two allowed exceptions: timing differences and reduced resource availability. Efficiency means a statistically dominant subset of instructions executes directly on the real processor with no VMM intervention, which is what formally excludes pure emulators and interpreters from being VMMs. Resource control means a program cannot touch resources not allocated to it and the VMM can reclaim allocated resources. The equivalence property is also what distinguishes a VMM from an ordinary time-sharing OS and from plain virtual memory.)
+(Lecture framing: fidelity / performance / safety; Paper, Popek & Goldberg: names these *equivalence*, *efficiency*, and *resource control*, and defines them precisely. Equivalence means any program has an effect identical to running on the bare machine, with two allowed exceptions: timing differences and reduced resource availability. Efficiency means a statistically dominant subset of instructions executes directly on the real processor with no VMM intervention, which is what formally excludes pure emulators and interpreters from being VMMs. Resource control means a program cannot touch resources not allocated to it and the VMM can reclaim allocated resources. The equivalence property is also what distinguishes a VMM from an ordinary time-sharing OS and from plain virtual memory.)
 
 #### History
 
-Virtualization began in the 1960s at IBM, when computing meant a few large mainframes shared by many users, and the goal was to run diverse workloads under different operating systems on one machine. It then lapsed: mainframes were not ubiquitous, commodity x86 hardware was cheap, and capable multitasking operating systems made it simpler to buy another box than to make several OSes coexist. By the late 1980s VMMs were close to a historical curiosity. It returned when data centers grew large, servers sat underutilized (roughly 10 to 20 percent average utilization), admin headcount rose, and power and cooling costs climbed, until operating expenses dominated IT budgets. Consolidating workloads onto fewer, better-managed machines brought those costs back down.
+Virtualization began in the 1960s at IBM, when computing meant a few large mainframes shared by many users, and the goal was to run diverse workloads under different operating systems on one machine. It then lapsed: mainframes were not ubiquitous, commodity x86 hardware was cheap, and capable multitasking operating systems made it simpler to buy another box than to make several OSes coexist. (Paper, Rosenblum & Garfinkel: by the late 1980s VMMs were regarded as little more than a historical curiosity.) It returned when data centers grew large, servers sat underutilized (roughly 10 to 20 percent average utilization), admin headcount rose, and power and cooling costs climbed, until operating expenses dominated IT budgets. Consolidating workloads onto fewer, better-managed machines brought those costs back down.
 
-(Lecture framing: the "cheap hardware made it unnecessary, then data-center sprawl made it necessary again" arc. The paper, Rosenblum & Garfinkel 2005, sharpens the irony: the very combination that killed VMMs, cheap hardware plus capable operating systems, is what later caused the problems VMMs solve, because cheap hardware proliferated underused machines and more capable operating systems grew "fragile and vulnerable," pushing admins to one-application-per-machine. It argues a VMM is going forward "less a vehicle for multitasking and more a solution for security and reliability." It also adds a different origin for the 1990s revival the lecture omits: Stanford researchers used VMs to make hard-to-program massively parallel machines look like existing platforms so they could reuse existing operating systems, and that project produced the people and ideas behind VMware.)
+(Lecture framing: the "cheap hardware made it unnecessary, then data-center sprawl made it necessary again" arc; Paper, Rosenblum & Garfinkel: sharpens the irony: the very combination that killed VMMs, cheap hardware plus capable operating systems, is what later caused the problems VMMs solve, because cheap hardware proliferated underused machines and more capable operating systems grew "fragile and vulnerable," pushing admins to one-application-per-machine. It argues a VMM is going forward "less a vehicle for multitasking and more a solution for security and reliability." It also adds a different origin for the 1990s revival the lecture omits: Stanford researchers used VMs to make hard-to-program massively parallel machines look like existing platforms so they could reuse existing operating systems, and that project produced the people and ideas behind VMware.)
 
 Benefits that follow: **consolidation** (fewer machines, less space, lower power), easier **migration** (OS and apps are decoupled from the box, so VMs are easy to clone, set up, and tear down), **availability/reliability** (spin a VM up elsewhere when a box is failing), fault and attack **containment**, a fertile ground for **OS research**, and affordable **legacy-OS** support.
 
@@ -797,13 +799,13 @@ Benefits that follow: **consolidation** (fewer machines, less space, lower power
 | Examples | Xen (privileged **dom0** runs the drivers, guest **domUs** run on top), VMware ESX | KVM (built into Linux) plus the QEMU emulator for critical instructions and I/O |
 | Tradeoff | Device non-uniformity is the main difficulty; closest to the hardware | Leverages the host, can run native apps alongside guests; pays host-crossing overhead on I/O |
 
-(Lecture framing: the hosted example is KVM/QEMU. The paper, Rosenblum & Garfinkel, uses VMware Workstation as the canonical hosted architecture, the origin of the term. Its I/O path is concrete: a guest disk read/write becomes a *host-OS file* read/write, and the guest display renders into a host window. The paper lists three advantages, the VMM installs like an ordinary application, it inherits the host's rich x86 driver support, and it reuses the host's scheduling and resource management, and one disadvantage, high I/O overhead because every request crosses into the host and traverses its layers. That overhead, plus the lack of host-provided performance isolation, is why VMware's ESX Server dropped the host OS and runs on bare hardware.)
+(Lecture framing: the hosted example is KVM/QEMU; Paper, Rosenblum & Garfinkel: uses VMware Workstation as the canonical hosted architecture (the term comes from the paper's reference, Sugerman et al.). Its I/O path is concrete: a guest disk read/write becomes a *host-OS file* read/write, and the guest display renders into a host window. The paper lists three advantages (the VMM installs like an ordinary application, it inherits the host's rich x86 driver support, and it reuses the host's scheduling and resource management) and two disadvantages: high I/O overhead because every request crosses into the host and traverses its layers, and the host OS's lack of resource-management support for performance isolation and service guarantees. Together they are why VMware's ESX Server dropped the host OS and runs on bare hardware.)
 
 #### Paravirtualization and why it is useful
 
-In paravirtualization the guest OS *knows* it is virtualized. Instead of issuing operations it knows will fail (or fail silently) on virtualized hardware, it makes explicit **hypercalls** to the hypervisor, which behave like system calls: the hypercall traps into the hypervisor, which performs the operation on the supplied data and returns control. This sidesteps the non-virtualizable-instruction problem (see the next question) and reduces the overheads of full virtualization (no binary translation, batched page-table updates, lighter device paths). The cost is that the guest OS must be modified, so it does not work for unmodified or legacy operating systems. The lecture attributes this approach to **Xen**.
+In paravirtualization the guest OS *knows* it is virtualized. Instead of issuing operations it knows will fail (or fail silently) on virtualized hardware, it makes explicit **hypercalls** to the hypervisor, which behave like system calls: the hypercall traps into the hypervisor, which performs the operation on the supplied data and returns control. This sidesteps the non-virtualizable-instruction problem (see the next question) and reduces the overheads of full virtualization (the guest makes hypercalls instead of issuing the problematic instructions, and can batch page-table updates into a single hypercall). The cost is that the guest OS must be modified, so it does not work for unmodified or legacy operating systems. The lecture attributes this approach to **Xen**.
 
-(Lecture framing: Xen is the paravirtualization example. The paper's canonical example is **Disco**, a VMM for the non-virtualizable MIPS architecture; the paper never mentions Xen. Disco replaced the MIPS equivalent of the troublesome instructions with accesses to a special memory location, which also removed the traps and improved performance. The paper frames paravirtualization generally as the VMM builder *redefining the VM interface*, replacing non-virtualizable instructions with efficient virtualizable equivalents, so most applications still run unmodified while the OS is ported. Its stated drawback is incompatibility: a ported OS, required vendor cooperation, no legacy OSes, no easy migration, which is why academic projects favored paravirtualization while a fully compatible commodity product, VMware, needed binary translation instead.)
+(Lecture framing: Xen is the paravirtualization example; Paper, Rosenblum & Garfinkel: the canonical example is **Disco**, a VMM for the non-virtualizable MIPS architecture; the paper never mentions Xen. Disco replaced the MIPS equivalent of the troublesome instructions with accesses to a special memory location, which also removed the traps and improved performance. The paper frames paravirtualization generally as the VMM builder *redefining the VM interface*, replacing non-virtualizable instructions with efficient virtualizable equivalents, so most applications still run unmodified while the OS is ported. Its stated drawback is incompatibility: a ported OS, required vendor cooperation, no legacy OSes, no easy migration, which is why academic projects favored paravirtualization while a fully compatible commodity product, VMware, needed binary translation instead.)
 
 ### What were the problems with virtualizing x86? How does protection of x86 used to work and how does it work now? How were/are the virtualization problems on x86 fixed?
 
@@ -813,7 +815,7 @@ Trap-and-emulate, the standard CPU-virtualization mechanism, depends on every in
 
 The lecture's canonical example is interrupt enable/disable via the flags register. `POPF`/`PUSHF` manipulate the interrupt flag, but issued unprivileged they silently ignore the change to that flag. The hypervisor is never notified that the guest wanted to change interrupt status, and the guest never learns the change did not take effect.
 
-(Correctness note on terminology. The lecture calls these "17 instructions that were privileged but did not trap." Under Popek & Goldberg's own definitions that phrasing is self-contradictory, because a privileged instruction is *defined* as one that traps in user mode. The accurate statement is that these 17 are **sensitive but not privileged**: they touch privileged state (sensitive) yet do not trap outside ring 0 (not privileged). They are exactly the instructions that violate Popek & Goldberg's subset condition. Also, the number 17 is *not* from Popek & Goldberg, whose 1974 paper predates x86 and contains no x86 instruction count; the count comes from **Robin & Irvine**, USENIX Security 2000, who analyzed the roughly 250 Pentium instructions. Popek & Goldberg's actual contribution is the theorem below.)
+(Lecture framing: "17 instructions that were privileged but did not trap"; Paper, Popek & Goldberg: under the paper's own definitions that phrasing is self-contradictory, because a privileged instruction is *defined* as one that traps in user mode. The accurate statement is that these 17 are **sensitive but not privileged**: they touch privileged state (sensitive) yet do not trap outside ring 0 (not privileged). They are exactly the instructions that violate Popek & Goldberg's subset condition. The 1974 paper predates x86 and contains no x86 instruction count; Popek & Goldberg's actual contribution is the theorem below.) The number 17 comes from **Robin & Irvine**, USENIX Security 2000, who analyzed the roughly 250 Pentium instructions.
 
 (Paper, Popek & Goldberg: an instruction is **privileged** if it traps in user mode but not supervisor mode; **sensitive** if it is *control sensitive* (changes resources such as memory, or changes processor mode outside the memory-trap sequence) or *behavior sensitive* (its result depends on real-memory location or on processor mode); and **innocuous** otherwise. **Theorem 1** states that a VMM can be constructed for a conventional third-generation machine **if the set of sensitive instructions is a subset of the privileged instructions**, because then every instruction the VMM must mediate traps. Pre-2005 x86 violated this; the 17 sensitive-but-unprivileged instructions were the counterexamples.)
 
@@ -827,13 +829,13 @@ The lecture's canonical example is interrupt enable/disable via the flags regist
 
 #### The three fixes
 
-**1. Binary translation (full virtualization, VMware).** Keep the guest *unmodified* by inspecting kernel instruction blocks at runtime, at roughly function granularity, before they execute. A block with none of the 17 instructions is marked safe and runs at hardware speed; a block containing one has that instruction rewritten into an alternate sequence that emulates the intended behavior. Overheads are reduced by caching translated fragments and only translating kernel code. This runs unmodified and legacy guests but adds translation latency.
+**1. Binary translation (full virtualization, VMware).** Keep the guest *unmodified* by inspecting kernel instruction blocks at runtime, at a basic-block granularity (such as a loop or a function), before they execute. A block with none of the 17 instructions is marked safe and runs at hardware speed; a block containing one has that instruction rewritten into an alternate sequence that emulates the intended behavior. Overheads are reduced by caching translated fragments and only translating kernel code. This runs unmodified and legacy guests but adds translation latency.
 
 (Paper, Rosenblum & Garfinkel: VMware runs only kernel code under the translator, translates each block into a similar block with the problematic instructions replaced, and caches it in a **trace cache** so a block is translated only on first execution. The output "looks much like" paravirtualized output, except changes are applied at first execution rather than to OS source. VMware's translator is simpler than cross-ISA translators because source and target ISAs are nearly identical. Binary translation is also a *performance* optimization: by removing frequently-trapping privileged instructions it cuts trap overhead, which is especially high on deep-pipeline x86 CPUs; once the trace cache is warm, speed is nearly indistinguishable from direct execution.)
 
-**2. Paravirtualization (Xen).** Modify the guest so it never issues the bad instructions, making explicit hypercalls instead. Lower overhead than binary translation, but requires guest modification, so no unmodified or legacy guests. (Paper: canonical example is Disco/MIPS, not Xen, as noted in the previous question.)
+**2. Paravirtualization (Xen).** Modify the guest so it never issues the bad instructions, making explicit hypercalls instead. Lower overhead than binary translation, but requires guest modification, so no unmodified or legacy guests. (Paper, Rosenblum & Garfinkel: canonical example is Disco/MIPS, not Xen, as noted in the previous question.)
 
-**3. Hardware virtualization (the eventual fix).** Around 2005 AMD (Pacifica) and Intel (Vanderpool) changed the chips so the 17 instructions trap and pass control to the hypervisor, and added the root/non-root modes above. Per-vCPU state lives in a hardware-walked control structure (**VMCS** on Intel, **VMCB** on AMD) that specifies what traps. Memory structures were tagged with VM identifiers, enabling **extended page tables** and **tagged TLBs** so world switches no longer flush them. I/O support was added (multiqueue devices, better interrupt routing). Intel brands these along three axes: **VT-x** (CPU: fix the instructions, extended page tables), **VT-d** (chipset: I/O routing, direct device access), and device-resident **IOV**/**VMDq** (DMA remapping, per-VM queues).
+**3. Hardware virtualization (the eventual fix).** Around 2005 AMD (Pacifica) and Intel (Vanderpool) changed the chips so the 17 instructions trap and pass control to the hypervisor, and added the root/non-root modes above. Per-vCPU state lives in a hardware-walked control structure (**VMCS** on Intel, **VMCB** on AMD) that specifies what traps. Memory structures were tagged with VM identifiers, enabling **extended page tables** and **tagged TLBs**, so a world switch no longer has to flush the previous VM's TLB entries, because the MMU matches both the virtual address and the VM identifier against each entry. I/O support was added (multiqueue devices, better interrupt routing). Intel brands these along three axes: **VT-x** (CPU: fix the instructions, extended page tables), **VT-d** (chipset: I/O routing, direct device access), and device-resident **IOV**/**VMDq** (DMA remapping, per-VM queues).
 
 (Paper, Popek & Goldberg: forcing the 17 sensitive-but-unprivileged instructions to trap is exactly making x86 satisfy Theorem 1. Once they trap they join the privileged set, so the sensitive set becomes a subset of the privileged set, and the trap-and-emulate VMM the paper proves constructible can be built directly in hardware rather than worked around in software.)
 
@@ -845,7 +847,7 @@ The lecture's canonical example is interrupt enable/disable via the flags regist
 
 CPU and memory virtualization are eased by strong standardization at the **instruction set architecture** level: for a given ISA such as x86, the VMM supports one well-defined instruction set and ignores lower-level hardware differences. Devices have no such standardization. There is enormous diversity in device types and in the specifics and semantics of their interfaces, so there is no single virtual device interface to export. Virtualization solutions pick one of three models.
 
-(Paper, Rosenblum & Garfinkel: frames this historically. Thirty years earlier IBM mainframes used a **channel**-based I/O architecture, with a separate channel processor that let the VMM export device access directly to the VM at very low overhead. The x86 world lost that, and its huge, diverse device collection makes a VMM I/O layer a large effort, while some devices (graphics, high-speed network) have severe performance needs. The paper's three concrete approaches map onto the three models below: the hosted architecture routes I/O through the host OS's drivers (highest overhead, VMware Workstation); ESX borrows Linux drivers directly (lower overhead, feasible because few server devices need certifying); and VMware exports *optimized paravirtualized virtual devices* that match no real device and need a special guest driver, which is the split-device idea.)
+(Paper, Rosenblum & Garfinkel: frames this historically. Thirty years earlier IBM mainframes used a **channel**-based I/O architecture, with a separate channel processor that let the VMM export device access directly to the VM at very low overhead. The x86 world lost that, and its huge, diverse device collection makes a VMM I/O layer a large effort, while some devices (graphics, high-speed network) have severe performance needs. The paper's three concrete approaches only partly line up with the three models below: the hosted architecture routes I/O through the host OS's drivers (highest overhead, VMware Workstation); ESX borrows Linux drivers directly (lower overhead, feasible because relatively few network and storage devices are certified for major x86 vendor servers); and VMware exports *optimized paravirtualized virtual devices* that match no real device and need a special guest driver, which is the split-device idea.)
 
 #### The three models
 
@@ -853,7 +855,7 @@ CPU and memory virtualization are eased by strong standardization at the **instr
 |---|---|---|---|
 | **Passthrough** (VMM-bypass) | The VMM-level driver sets access permissions once (maps the device's registers into the guest), then steps aside; the guest's own driver drives the device directly | Lowest overhead; VMM out of the data path | Exclusive access makes **sharing** hard (VMM must keep reassigning the device, no concurrent access); the guest needs the *exact* device type present, which **re-couples** guest and hardware and makes migration hard again (device-resident state must be copied) |
 | **Hypervisor-direct** | The VMM intercepts *every* device request, translates it to a generic I/O operation for that device family, and runs it down the hypervisor-resident I/O stack to the real driver | Guest stays decoupled from the hardware, so migration stays easy; device sharing works | Emulation adds **latency** on every access; the hypervisor must support *all* the drivers, inheriting their complexity |
-| **Split device driver** | Two cooperating parts: a **front-end driver** in the guest VM and a **back-end driver** in the service VM (type 1) or host OS (type 2); the front end wraps guest device operations in a standard format for the back end, which issues the real requests | Eliminates per-access emulation overhead; the centralized back end manages shared devices well | The front end must be modified, so this works **only for paravirtualized guests** |
+| **Split device driver** | Two cooperating parts: a **front-end driver** in the guest VM and a **back-end driver** in the service VM (type 1) or host OS (type 2); the front end wraps guest device operations in special messages passed directly to the back-end component, which issues the real requests | Eliminates per-access emulation overhead; the centralized back end manages shared devices well | The front end must be modified, so this works **only for paravirtualized guests** |
 
 #### Passthrough vs. split device, directly contrasted
 
@@ -864,11 +866,11 @@ The through-line: passthrough optimizes raw performance at the expense of sharin
 
 ## P4L1
 
-### What's the motivation for RPC? What are the various design points that have to be sorted out in implementing an RPC runtime (e.g., binding process, failure semantics, interface specification… )? What are some of the options and associated tradeoffs?
+### What's the motivation for RPC? What are the various design points that have to be sorted out in implementing an RPC runtime (e.g., binding process, failure semantics, interface specification... )? What are some of the options and associated tradeoffs?
 
 #### Motivation
 
-Almost every client/server program repeats the same low-level plumbing: open a socket, bind/connect, serialize arguments into a contiguous buffer, send, wait, receive, deserialize, handle transport errors. Two different applications (a client fetching a file; a client shipping an image to a server for processing) differ only in the request name and the payload, yet both require nearly identical setup. RPC was motivated by the observation that this boilerplate is accidental complexity. The goal is to let a programmer call a remote procedure as if it were local, so they can focus on what the service does rather than on the transport.
+Almost every client/server program repeats the same low-level plumbing: open a socket, bind/connect, serialize arguments into a contiguous buffer, send, wait, receive, deserialize, handle transport errors. Two different applications (a client fetching a file; a client shipping an image to a server for processing) differ only in the request name and the payload, yet both require nearly identical setup. RPC was motivated by the observation that this socket plumbing (creating and initializing sockets, allocating buffers, populating them with protocol information such as a "get file" directive and the buffer size, and explicitly copying data in and out) is repeated boilerplate. The goal is to let a programmer call a remote procedure as if it were local, so they can focus on what the service does rather than on the transport.
 
 Concretely, RPC provides:
 
@@ -876,7 +878,7 @@ Concretely, RPC provides:
 - Built-in handling of common transport/communication errors, so each program does not re-implement error handling.
 - Hiding of cross-machine differences (endianness, float and negative-number representation, word size) behind an agreed wire format.
 
-Birrell and Nelson's stated primary aim is the same idea from the other direction: make distributed computation easy, because at the time building communicating programs was a task reserved for communication experts, and the communication mechanisms themselves were the main thing constraining distributed computing. Their guiding principle is that remote-call semantics should be as close as possible to local-call semantics.
+(Paper, Birrell & Nelson: the stated primary aim is the same idea from the other direction: make distributed computation easy, because at the time building communicating programs was a task reserved for communication experts, and the communication mechanisms themselves were the main thing constraining distributed computing. The guiding principle is that remote-call semantics should be as close as possible to local-call semantics.)
 
 #### Design points and tradeoffs
 
@@ -886,27 +888,27 @@ Birrell and Nelson's stated primary aim is the same idea from the other directio
 | Failure semantics | Return a catch-all error vs. attempt richer diagnosis; retry vs. do not retry | So many independent things can fail (lost request, lost reply, dead network link, crashed server machine, crashed server process, overloaded server) that the runtime usually cannot say which. A single catch-all failure is honest but uninformative; retrying can mask transient faults but changes the call's guarantee (see below). |
 | Interface specification (IDL) | Language-agnostic (e.g. XDR) vs. language-specific (e.g. Java RMI uses Java) | A language-specific IDL is natural if you already know that language and avoids learning a new notation. A language-agnostic IDL lets a C client talk to a server written in anything, at the cost of learning the IDL. |
 | Call semantics | Synchronous blocking (standard) | Matches local procedure-call semantics, which is the whole point; the caller blocks until the result returns. The cost is that the caller is suspended for the full round trip. |
-| Pointer arguments | Disallow pointers vs. serialize the pointed-to data | Disallowing is simplest and safest across address spaces; serializing the referenced data lets pointers be "passed" at the cost of copying. |
+| Pointer arguments | Disallow pointers vs. serialize the pointed-to data | Either disallow pointers as arguments, or allow them and marshal the referenced data (not the pointer); the unmarshalling code hands the local procedure the address of the reconstructed data, so pointers are "passed" between client and server. |
 | Transport protocol | TCP, UDP, others | RPC is meant to be more than a transport protocol: it should run over different transports and layer access control, authentication, and fault tolerance on top. |
 | Type checking | Present | Catches wrong-type arguments and lets the runtime optimize interpretation of the raw byte stream, since the wire is otherwise just bytes. |
 
 #### Call-semantics spectrum (the subtle one)
 
-Because failures are ambiguous, the choice of what to do on timeout defines the delivery guarantee:
+Because failures are ambiguous, the choice of what to do on timeout defines the delivery guarantee. The lecture itself stops at the catch-all error and SunRPC's configurable retry; the spectrum below comes from the paper and the ONC RPC standard.
 
 - **At-least-once**: blindly retransmit the whole call until a reply arrives. Fine for idempotent procedures, dangerous for non-idempotent ones (a transfer could run twice).
-- **At-most-once**: remember a transaction/call identifier so the callee can discard duplicates; the call runs zero or one times.
-- **Exactly-once (on return)**: Birrell and Nelson's packet protocol pairs retransmission with call identifiers and a monotonic per-activity sequence number, so the callee discards duplicates. Their guarantee: if the call returns to the user, the procedure was invoked exactly once; if an exception is reported instead, it was invoked either once or not at all, and the user is not told which, nor whether the fault was a crash or a communication problem.
+- **At-most-once**: remember a transaction/call identifier so the callee can discard duplicates; this gives some degree of at-most-once.
+- **Exactly-once (on return)**: (Paper, Birrell & Nelson: the packet protocol pairs retransmission with call identifiers and a per-activity sequence number, so the callee discards duplicates. The guarantee: if the call returns to the user, the procedure was invoked exactly once; if an exception is reported instead, it was invoked either once or not at all, and the user is not told which, nor whether the fault was a crash or a communication problem.)
 
-(Lecture framing: binding is presented as a choice between a distributed registry and a per-machine registry, with the per-machine registry as one extreme; the Birrell and Nelson paper's actual binding uses Grapevine, a replicated distributed database, binding an importer to an exporter by interface type and instance. The per-machine registry is the SunRPC point in the space, not the paper's.)
+(Lecture framing: binding is presented as a choice between a distributed registry and a per-machine registry, with the per-machine registry as one extreme; Paper, Birrell & Nelson: the actual binding uses Grapevine, a replicated distributed database, binding an importer to an exporter by interface type and instance.) The per-machine registry is the SunRPC point in the space, not the paper's.
 
-### What's specifically done in Sun RPC for these design points – you should easily understand this from your project?
+### What's specifically done in Sun RPC for these design points: you should easily understand this from your project?
 
 SunRPC is the RPC package Sun built in the 1980s for NFS on UNIX, now widely ported. Its concrete choices on each design point:
 
 - **Binding / registry**: per-machine. SunRPC assumes the server machine is known up front. A registry daemon called **portmapper** runs on every machine (registered on both TCP and UDP at port 111). The server registers its service with the local portmapper on startup; the client must contact the portmapper on the target machine to obtain the port for the service it wants. `rpcinfo -p` lists the program id, version, protocol, port, and name of every service registered on a machine.
 - **Interface specification**: language-agnostic. SunRPC uses **XDR** (eXternal Data Representation) both to specify the interface and to specify the on-the-wire encoding of each data type. The interface lives in a `.x` file; `rpcgen -C <interface>.x` compiles it into `<interface>.h` (types and prototypes), `<interface>_svc.c` (server stub plus a `main` with the registration code), `<interface>_clnt.c` (client stub), and `<interface>_xdr.c` (marshaling/unmarshalling routines shared by both sides).
-- **Failure semantics**: SunRPC exposes a set of error codes and tries to return a meaningful error as often as possible. It includes a retry mechanism for re-contacting a server after a timeout, and the number of retries is configurable. The default "retry until it succeeds" gives at-least-once semantics for non-idempotent procedures over an unreliable transport, which is a different point on the spectrum from the paper's exactly-once-on-return design. (The ONC RPC standard, RFC 1831, makes this explicit: over an unreliable transport a reply implies at-least-once, a remembered transaction id gives at-most-once, and only a reliable transport yields exactly-once.)
+- **Failure semantics**: SunRPC exposes a set of error codes and tries to return a meaningful error as often as possible. It includes a retry mechanism for re-contacting a server after a timeout, and the number of retries is configurable. The default behavior retries a bounded (configurable) number of times. Blind retransmission gives only at-least-once semantics, unsafe for non-idempotent procedures over an unreliable transport, which is a different point on the spectrum from Birrell & Nelson's exactly-once-on-return design (described above). (The ONC RPC standard, RFC 1831, makes this explicit: over an unreliable transport a reply implies at-least-once, a remembered transaction id gives some degree of at-most-once, and only a reliable transport yields exactly-once.)
 - **Pointers**: allowed. SunRPC serializes the pointed-to data, and the server-side unmarshalling code hands the local procedure the address of the reconstructed data.
 - **Binding handle**: when the client binds via `clnt_create(host, prog, vers, proto)`, it receives a `CLIENT*` handle used on every subsequent call to track per-client RPC state, request status, errors, and authentication.
 - **Threading**: `rpcgen` output is not thread-safe by default; `-M` makes the generated code thread-safe, and `-A` generates a multithreaded server on Solaris (on Linux the multithreading must be written by hand).
@@ -937,7 +939,7 @@ The receiver, knowing the convention, reads the length (or scans to the terminat
 - **Variable-length array**: `int data<80>`. This compiles to a struct with two fields: an integer `len` holding the actual element count and a pointer `val` to the elements. The sender sets `len` and points `val` at the data; the receiver reads the first four bytes to learn `len`, allocates that much memory, and copies the rest of the stream in. (In-memory size of a full variable-length `int` array of max size 5 on a 32-bit machine: 4-byte `len` + 4-byte `val` pointer + five 4-byte ints = 28 bytes.)
 - **Strings** are the exception: in memory they are ordinary null-terminated C strings, but on the wire they are encoded as a `len` plus `data` pair, like a variable-length array.
 
-The reference for all of P4L1 is Birrell and Nelson, "Implementing Remote Procedure Calls" (ACM TOCS, 1984) alone; the stub generator in that paper is named Lupine and the registry is Grapevine.
+The reference for all of P4L1 is Birrell and Nelson, "Implementing Remote Procedure Calls" (ACM TOCS, 1984) alone. (Paper, Birrell & Nelson: the stub generator is named Lupine and the binding registry is Grapevine.)
 
 ## P4L2
 
@@ -945,8 +947,8 @@ The reference for all of P4L1 is Birrell and Nelson, "Implementing Remote Proced
 
 #### Where the work happens: the two extremes
 
-- **Upload/download (client-driven)**: the client downloads the whole file, modifies it locally, and uploads it back. Modifications are fast and local with no per-operation network cost, but the client must transfer the entire file even for a one-byte change, and the server loses all control and knowledge of the file while it is checked out.
-- **True remote access (server-driven)**: the file stays on the server and every operation crosses the network. The server keeps full control and consistency is easy to maintain, but every operation (even repeated reads of a read-only file) pays a network cost, and the server saturates quickly, limiting scalability.
+- **Upload/download**: the client downloads the whole file, modifies it locally, and uploads it back. Modifications are fast and local with no per-operation network cost, but the client must transfer the entire file even for small modifications, and the server loses all control and knowledge of the file while it is checked out.
+- **True remote access**: the file stays on the server and every operation crosses the network. The server keeps full control and consistency is easy to maintain, but every operation (even repeated reads of a read-only file) pays a network cost, and the server saturates quickly, limiting scalability.
 
 The practical compromise is to let clients cache blocks (and prefetch likely-next blocks). This cuts latency and server load, but forces clients to tell the server about modifications and to check whether cached blocks have been invalidated by others, which makes the server more complex and introduces non-UNIX sharing semantics the client must understand.
 
@@ -955,10 +957,10 @@ The practical compromise is to let clients cache blocks (and prefetch likely-nex
 | | Stateless | Stateful |
 |---|---|---|
 | Knows about clients/files/accesses | No | Yes (which files/blocks are open, by whom, read vs. write, who has cached what) |
-| Request form | Every request self-contained (absolute offsets, all parameters) | Can use relative requests ("next 1 KB") |
+| Request form | Every request self-contained (absolute offsets, all parameters) | Can use relative requests ("next kB of data") |
 | Caching + consistency | Not possible (no state to drive coherence) | Supported, plus locking |
 | Resource use | No CPU/memory for state | Runtime overhead to maintain state and run coherence protocols |
-| Failure recovery | Trivial: just restart, clients unaffected | Hard: state must be recovered, so it must be incrementally checkpointed |
+| Failure recovery | Trivial: just restart; clients reissue timed-out requests and get the same answers | Hard: state must be recovered, so the state must be checkpointed to be rebuilt |
 | Bits on the wire | More per request (self-contained) | Fewer |
 
 Stateless servers suit the two extreme models; any caching model needs a stateful server.
@@ -967,7 +969,7 @@ Stateless servers suit the two extreme models; any caching model needs a statefu
 
 - **Caching** (client-side): lets repeated reads hit local memory/disk, lowering latency and server load. The cost is cache coherence: when one client writes a block another has cached, the system needs a mechanism (on-demand, periodic, or on-open; client- or server-driven) to propagate or invalidate. Coherence requires server state, so caching and statelessness are incompatible.
 - **Replication**: every server holds all files. Requests load-balance across replicas, the system is highly available, and it is fault tolerant (a replica can fail with no loss of service). Costs: writes become complex (write synchronously to all replicas, or write one and asynchronously propagate), replicas can diverge and must be reconciled (e.g. majority voting), and the system does not scale in capacity, since adding a machine does not let you store more files.
-- **Partitioning**: each server holds a disjoint subset of files (by filename, type, directory, etc.). This scales in capacity (more machines means more files), and writes are simple because a file lives on exactly one machine. Costs: when a partition fails its files are unavailable, routing is more complex, load balancing must account for access skew, and a heavily-accessed file creates a hotspot.
+- **Partitioning**: each server holds a disjoint subset of files (by filename, by directory, which partitions the hierarchical namespace, or by other criteria). This scales in capacity (more machines means more files), and writes are simple because a file lives on exactly one machine. Costs: when a partition fails its files are unavailable, routing is more complex, load balancing must account for access skew, and a heavily-accessed file creates a hotspot.
 - **Combination**: partition across one axis, then replicate each partition, to get scalability and availability together.
 
 Update semantics are a further axis: **session semantics** (write back on close, check for a newer version on open) are easy to reason about but poor for concurrent sharing and allow long staleness windows; **periodic updates** (client flushes periodically, server sends periodic invalidations) bound inconsistency in time. Other strategies are immutable files (never modify; create a new file) and transactions (batch updates applied atomically).
@@ -980,14 +982,14 @@ Reference: Nelson, Welch, and Ousterhout, "Caching in the Sprite Network File Sy
 
 | Observation | Design decision |
 |---|---|
-| About one-third of accesses are writes (two-thirds reads) | Caching is worthwhile for the two-thirds of reads; but a write-through cache cannot reduce disk or server traffic by more than two-thirds, so write-through alone is insufficient. Use a delayed write-back policy. |
+| About one-third of accesses are writes (two-thirds reads) | Caching is worthwhile: 66% of operations can be improved; but write-through alone is insufficient to leverage the cache for writes. Use a delayed write-back policy. (Paper, Nelson et al.: a write-through cache cannot reduce disk or server traffic by more than two-thirds.) |
 | 20-30% of new data deleted within 30 s; 50% within 5 min | Delayed write-back pays off: data deleted before it is written back never needs to be written at all. |
-| 75% of files open < 0.5 s; 90% open < 10 s | Write-on-close (session semantics for write-back) would not significantly reduce traffic and would force the closing process to wait on the write; reject it. |
+| 75% of files open < 0.5 s; 90% open < 10 s | Write-on-close (session semantics for write-back) would not significantly reduce traffic; reject it. (Paper, Nelson et al.: write-on-close would also force the closing process to wait for the write-back.) |
 | Concurrent write-sharing is rare | Optimize the consistency algorithm for the no-sharing case; disable caching entirely during concurrent write-sharing, since the cost is paid infrequently. |
 
-Sprite's resulting policy: main-memory caches on both clients and servers; delayed write-back where every 30 seconds all dirty blocks not modified in the last 30 seconds are written back; every `open` goes to the server (so directories/names are not cached); and caching disabled for a file while it is concurrently write-shared, with all its accesses serialized at the server.
+Sprite's resulting policy: client caching (Paper, Nelson et al.: main-memory caches on both clients and servers); delayed write-back where every 30 seconds all dirty blocks not modified in the last 30 seconds are written back; every `open` goes to the server (so directories/names are not cached); and caching disabled for a file while it is concurrently write-shared, with all its accesses serialized at the server.
 
-(Lecture framing: the lecture presents these statistics as a study of Sprite's own production filesystem and derives the 30-second write-back interval from the 30-second deletion figure. The paper says otherwise. The write %, open-duration, and deletion numbers come from the earlier "BSD study," a trace of three time-shared VAX-11/780s running 4.2 BSD UNIX; Sprite's only Sprite-specific use of that trace is a simulation. The one-third write figure is used as an upper bound ("write-through cannot reduce traffic by more than two-thirds"), not as a count of improvable operations. The 30-second interval is the standard UNIX/4.2 BSD delayed-write interval, not a number tuned to the deletion statistic; the paper notes the trace actually argues for a longer delay and that it plans to experiment with longer intervals. And "concurrent write-sharing rare" is the paper's expectation about Sprite's own sharing used to justify optimizing for the no-sharing case, not a claim that the BSD trace measured sharing frequency; the paper's own sharing evidence is its Section 5.3 simulation, where of all write traffic 4041 blocks were written through for concurrent write-sharing and 6887 flushed for sequential write-sharing, and consistency accounted for about one-fourth of server traffic.)
+(Lecture framing: the lecture presents these statistics as a study of Sprite's own production filesystem and derives the 30-second write-back interval from the 30-second deletion figure; Paper, Nelson et al.: the write %, open-duration, and deletion numbers come from the earlier "BSD study," a trace of three time-shared VAX-11/780s running 4.2 BSD UNIX; Sprite reused that trace rather than tracing Sprite itself, in its Section 5.3 simulation (Tables 1 and 2) and again in Section 7 to estimate per-user I/O rates for sizing a server. The one-third write figure is used as an upper bound ("write-through cannot reduce traffic by more than two-thirds"), not as a count of improvable operations. The 30-second interval is the UNIX convention (the 30-second sync interval), not a number tuned to the deletion statistic; the paper notes the trace actually argues for a longer delay and that it plans to experiment with longer intervals. And "concurrent write-sharing rare" is the paper's expectation about Sprite's own sharing used to justify optimizing for the no-sharing case, not a claim that the BSD trace measured sharing frequency; the paper's own sharing evidence is its Section 5.3 simulation, where of all write traffic 4041 blocks were written through for concurrent write-sharing and 6887 flushed for sequential write-sharing, and consistency accounted for about one-fourth of server traffic.)
 
 #### Data structures
 
@@ -1007,43 +1009,43 @@ Per file, the **server** keeps:
 
 How these are used:
 
-- **Version numbers** solve the first sequential-write-sharing problem (the opener's own cache may be stale): the server increments the version each time the file is opened for writing; a client compares its stored version against the server's on open and flushes its cached copy if they differ.
-- **Last-writer / writer tracking** solves the second sequential-write-sharing problem (current data may still sit in the previous writer's cache, since the last writer need not have flushed on close): on a new open by a different client, the server tells the last writer to flush its dirty blocks through before the opener reads.
-- On **concurrent write-sharing** (file open on multiple clients with at least one writer), the server (1) tells the single writer, if any, to write back all dirty blocks (there can be at most one such writer), and (2) tells all clients currently holding the file open that it is no longer cacheable, so they drop its blocks and go to the server; the server then serializes all accesses, giving single-timeshared-machine semantics. Clients that merely hold stale blocks but are not currently open are not notified; they take consistency action at their next open. Disabling is per file and only while sharing is concurrent; for simplicity Sprite does not re-enable caching for a file that is still open once it becomes cacheable again. (The lecture's "when the writer closes, the server makes it cacheable again" is the common case; the paper's rule is narrower.)
+- **Version numbers**: every `open` goes through the server, so the server and the client keep a version number per file to stay in sync. (Paper, Nelson et al.: this solves the first sequential-write-sharing problem, that the opener's own cache may be stale: the server increments the version each time the file is opened for writing; a client compares its stored version against the server's on open and flushes its cached copy if they differ.)
+- **Writer tracking** (sequential write-sharing): when a new writer opens the file after the previous writer closed it, the server contacts the old writer to gather its dirty blocks (convenient, since the client tracks its dirty blocks), updates its writer field to the new writer, and the new writer can cache the file. (Paper, Nelson et al.: this is the separate second problem, that current data may still sit in the last writer's cache because the last writer need not have flushed on close; the server tells the last writer to flush its dirty blocks through before the opener reads.)
+- **Concurrent write-sharing**: when another writer arrives while the current writer still has the file open, the server has the current writer write back all its dirty blocks and marks the file not cacheable (the per-file `cacheable` flag), disabling caching for everybody; all operations then go through the server. When a writer closes the file, the server sees it and makes the file cacheable again, so the remaining clients can resume caching. (Lecture framing: caching is re-enabled when a writer closes; Paper, Nelson et al.: on detecting concurrent write-sharing the server (1) tells the single writer, if any, to write back all dirty blocks (there can be at most one such writer), and (2) tells all clients currently holding the file open that it is no longer cacheable, so they drop its blocks and go to the server, giving single-timeshared-machine semantics. Clients that merely hold stale blocks but do not have the file open are not notified; they take consistency action at their next open. For simplicity Sprite does not re-enable caching for files that are already open, so the remaining writer would not resume caching until it closes and reopens the file; caching is re-enabled only for later opens.)
 
-A note the lecture omits: Sprite provides *consistency* (every read returns the most recently written data) but not *synchronization* (it does not order concurrent applications' reads and writes sensibly); applications that care about order must use file locking. Consistency "simply eliminates the network issues and reduces the problem to what it was on time-sharing systems."
+(Paper, Nelson et al.: Sprite provides *consistency* (every read returns the most recently written data) but not *synchronization* (it does not order concurrent applications' reads and writes sensibly); applications that care about order must use file locking. Consistency "simply eliminates the network issues and reduces the problem to what it was on time-sharing systems.")
 
 ## P4L3
 
 ### When sharing state, what are the tradeoffs associated with the sharing granularity?
 
-The granularity is the unit at which the DSM layer tracks sharing and triggers coherence traffic. The tension is uniform: finer granularity gives precise sharing and less false sharing but generates coherence traffic too often to be affordable over a network; coarser granularity amortizes network cost over a larger unit but risks false sharing.
+The granularity is the unit at which the DSM layer tracks sharing and triggers coherence traffic. The tension is uniform: finer granularity gives precise sharing but generates coherence traffic too often to be affordable over a network; coarser granularity amortizes network cost over a larger unit but risks false sharing.
 
 | Granularity | For | Against |
 |---|---|---|
-| Cache line | The SMP hardware unit; minimal false sharing | Far too fine for DSM: coherence traffic per cache line, carried over the network, swamps any consistency benefit. |
-| Variable | Meaningful to the programmer; could allow per-variable sharing semantics | Still too fine; variables are small and frequent, so coherence overhead over the network stays too high. |
+| Cache line | The SMP hardware unit; minimal false sharing | Far too fine for DSM: cache-line coherence traffic carried over the network is too expensive. |
+| Variable | Meaningful to the programmer; could allow per-variable sharing semantics | Still too fine; many variables are only a few bytes long, so coherence overhead over the network stays too high. |
 | Page | Natural to the OS (no language support needed); large enough to amortize remote-access cost | Must beware **false sharing**: two nodes writing different variables that happen to lie on the same page trigger coherence traffic that is logically unnecessary. |
 | Object | No OS modification needed (the OS knows nothing about objects) | Requires a language runtime that understands which objects are local vs. remote, so it is not generalizable across languages. |
 
 With a cooperating compiler, application objects can be laid out on separate pages so a page-based OS mechanism can be used without the language-runtime dependency.
 
-(Paper note, Protic et al.: the paper frames granularity as a two-sided tradeoff. Coarser blocks save directory storage and suit high-locality applications but raise the chance that different processors contend for the same block even when touching unrelated parts of it. It lists false sharing together with **thrashing** as the two adverse effects of coarse-grain, virtual-memory-based software DSM, which is why hardware systems favor cache-line granularity.)
+(Paper, Protic et al.: the paper frames granularity as a two-sided tradeoff. Coarser blocks save directory storage and suit high-locality applications but raise the chance that different processors contend for the same block even when touching unrelated parts of it. It lists false sharing together with **thrashing** as the two adverse effects of coarse-grain, virtual-memory-based software DSM, which is why hardware systems favor cache-line granularity.)
 
-### For distributed state management systems (think distributed shared memory) what are the basic mechanisms needed to maintain consistence – e.g., do you why is it useful to use 'home nodes', why do we differentiate between a global index structure to find the home nodes and local index structures used by the home nodes to track information about the portion of the state they are responsible for.
+### For distributed state management systems (think distributed shared memory) what are the basic mechanisms needed to maintain consistence, e.g., do you why is it useful to use 'home nodes', why do we differentiate between a global index structure to find the home nodes and local index structures used by the home nodes to track information about the portion of the state they are responsible for.
 
 Two things must be maintained:
 
 1. **A requester must be able to find a recent copy of any datum.** Each page/address is assigned a **home node** (manager) responsible for it. Every node holds a replicated **global map** from page id to home node, so any node can immediately locate the home node and request the data, then cache it until a coherence message arrives.
 2. **State changes must be broadcast to exactly the nodes that care.** The home node for a datum drives coherence when that datum changes. To do so it keeps a **local, per-page index** of which nodes have cached that page (so requesters must include their node id in each request). It contacts only those nodes, not everyone.
 
-Why split global vs. local indices: the global index is small, uniform, and replicated everywhere so lookups never need a network round trip to find a manager; it answers "who owns this page?" The per-page local indices are large and specific, and they are partitioned across home nodes so no single node holds all of them; they answer "who must I notify when this page changes?" Keeping the global map replicated and the detailed per-page state partitioned per home node is what makes the directory scale: every node can find a manager instantly, but only the manager carries the heavy per-page bookkeeping for its own pages.
+Why split global vs. local indices: a small global map (page/object id -> manager id) is replicated on every node, so any node can find the manager of any page. The per-page (local) metadata is partitioned across the system, so no single node holds all of it; each manager keeps the metadata only for its own pages.
 
 A useful refinement is to distinguish the **home node** from an **owner node**. When a non-home node accesses a page repeatedly or exclusively, continually routing updates through the home node is expensive; ownership (the right to drive coherence and modify) can migrate to that node, and the home node's role narrows to tracking who the current owner is. The address itself is a (node id, page frame number) pair; the mapping-table indirection lets the manager/owner change without changing the address.
 
-The home node's per-page metadata typically includes: which nodes have accessed the page, modification status, caching enabled/disabled, and lock status. Replicas can also be created deliberately for load balancing, performance, or reliability (for example triplicating state across the local machine, a nearby machine, and a remote datacenter).
+The home node's per-page metadata typically includes: which pages were accessed, and by whom (readers, writers), modification status, caching enabled/disabled, and lock status. Replicas can also be created deliberately for load balancing, hot spot avoidance, or reliability (for example triplicating state across the local machine, a nearby machine in the same rack, and a remote machine in another rack or potentially another datacenter).
 
-(Paper note, Protic et al.: the paper's terms are manager, owner, and **copy set**, following the Li and Hudak algorithms. The copy set is exactly this per-page list of sites holding copies. Variants differ in where the copy set lives: the centralized-manager algorithm keeps it at the manager; the improved version lets it travel with the data to each new owner; the dynamic distributed manager tracks a *probable* owner and chases a chain, degrading only logarithmically under contention.)
+(Paper, Protic et al.: the paper's terms are manager, owner, and **copy set**, following the Li and Hudak algorithms. The copy set is exactly this per-page list of sites holding copies. Variants differ in where the copy set lives: the centralized-manager algorithm keeps it at the manager; the improved version lets it travel with the data to each new owner; the dynamic distributed manager tracks a *probable* owner and chases a chain, degrading only logarithmically under contention.)
 
 ### Do you have some ideas how would you go about implementing a distributed shared memory system?
 
@@ -1056,7 +1058,7 @@ The central requirement is to intervene on exactly the memory accesses that touc
 
 For an object-granularity DSM, the same ideas move into a language runtime: the runtime distinguishes local from remote objects and generates the request/coherence operations for remote ones, optionally leaning on the same OS/MMU services, or doing everything in software.
 
-### What's a consistency model? What are the different guarantees that change in the different models we mentioned – strict, sequential, causal, weak… Can you work through a hypothetical execution example and determine whether the behavior is consistent with respect to a particular consistency model?
+### What's a consistency model? What are the different guarantees that change in the different models we mentioned: strict, sequential, causal, weak... Can you work through a hypothetical execution example and determine whether the behavior is consistent with respect to a particular consistency model?
 
 #### What a consistency model is
 
@@ -1070,7 +1072,7 @@ Notation convention: `R(x)a` means a read of location `x` returns value `a`; `W(
 
 **Sequential consistency.** Visibility need not be immediate. The observed order must correspond to *some* legal interleaving of the operations, subject to two rules: (1) operations issued by a single process appear in all observers in that process's issue order; (2) all processes observe the *same* single interleaving.
 
-Example (two writers, two readers). P1 does `W(m1)X`; P2 does `W(m2)Y`. A third process may legally observe `R(m1)X` then `R(m2)Y`, or `R(m1)0` then `R(m2)Y`, or `R(m1)0` then `R(m2)0`. If the real order was `W(m1)X` before `W(m2)Y`, then observing `R(m2)Y` and then `R(m1)0` is illegal (it would place Y before X, which no legal interleaving allows). Same-process ordering: if P1 does `W(m3)X` then `W(m3)Z`, no observer may read `Z` then `X`. Agreement: if P3 reads one order of the updates, P4 must see the same order; P3 and P4 may not disagree on the value of a location they both read concurrently.
+Example (two writers, two readers). P1 does `W(m1)X`; P2 does `W(m2)Y`. The two writes are unrelated (P2 computed Y without any reference to m1). A third process may legally observe `R(m1)X` then `R(m2)Y`, or `R(m1)0` then `R(m2)Y`; both are fine because each matches some possible ordering of the operations on a single shared memory. Same-process ordering: if P1 later does `W(m3)Z`, no process may see `Z` at m3 and only afterwards find out that `X` was written to m1. Agreement: if P3 sees one ordering of the updates, every other process must see the same ordering. If P3 sees m1 updated to X before m2 is updated to Y, while P4 sees m2 already updated to Y with m1 still 0, the two processes observe different orders of the same updates, which sequential consistency does not allow.
 
 **Causal consistency.** Only *potentially causally related* writes must be seen in the same order by all processes; concurrent (causally unrelated) writes may be observed in different orders by different processes. A write that follows a read on the same process is treated as potentially dependent on the value read.
 
@@ -1082,12 +1084,12 @@ Example. P1 does `W(m1)X` then `sync`. P2 at that moment is not guaranteed to se
 
 #### Which models come from where
 
-Of the four, only **sequential** and **weak** are in Protic et al.'s taxonomy (which runs sequential, processor, weak, release, lazy release, entry). **Strict** and **causal** are not in Protic; the lecture takes them from the general distributed-systems literature (Tanenbaum). Precise points worth keeping straight:
+(Paper, Protic et al.: of the four, only **sequential** and **weak** are in the paper's taxonomy (which runs sequential, processor, weak, release, lazy release, entry). **Strict** and **causal** are not in Protic.) The lecture takes strict and causal from the general distributed-systems literature (Tanenbaum). Precise points worth keeping straight:
 
-- Sequential consistency is Lamport's definition: all processors observe the same interleaving of the read/write sequences issued by individual processors.
-- The paper also defines **processor consistency** (which the lecture skips): all processors must see any one processor's writes in that processor's issue order, but need not agree on the interleaving of writes from *different* processors.
-- The paper's weak-consistency definition carries a guarantee the lecture leaves implicit: the synchronization accesses must themselves be sequentially consistent among one another.
-- The lecture's single acquire/release mechanism is, in the paper's finer taxonomy, **release consistency** (acquire gates later ordinary accesses; release waits for prior ordinary accesses). **Entry consistency** is a distinct, more aggressive model that additionally binds each shared variable to a specific synchronization variable, so an acquire propagates only the data that variable guards; the lecture's label "entry/acquire" does not fully capture it. **Lazy release** postpones propagation to the next relevant acquire and is contrasted with "eager" release.
+- (Paper, Protic et al.: sequential consistency is stated as: all processors observe the same interleaving of the read/write sequences issued by individual processors.)
+- (Paper, Protic et al.: the paper also defines **processor consistency**, which the lecture skips: all processors must see any one processor's writes in that processor's issue order, but need not agree on the interleaving of writes from *different* processors.)
+- (Paper, Protic et al.: the paper's weak-consistency definition carries a guarantee the lecture leaves implicit: the synchronization accesses must themselves be sequentially consistent among one another.)
+- (Paper, Protic et al.: the lecture's single acquire/release mechanism is, in the paper's finer taxonomy, **release consistency** (acquire gates later ordinary accesses; release waits for prior ordinary accesses). **Entry consistency** is a distinct, more aggressive model that additionally binds each shared variable to a specific synchronization variable, so an acquire propagates only the data that variable guards; the lecture's label "entry/acquire" does not fully capture it. **Lazy release** postpones propagation to the next relevant acquire and is contrasted with "eager" release.)
 
 ## P4L4
 
@@ -1111,7 +1113,7 @@ The tradeoff is simplicity and easy scaling (homogeneous) versus locality and ca
 
 #### History and motivation
 
-Amazon in the early 2000s had an imbalanced workload: most traffic came during the holiday shopping season, so much provisioned hardware sat idle the rest of the year. In 2006 Amazon opened its hardware to third-party workloads over web APIs, for a fee; this was the birth of AWS and EC2. The canonical illustration is **Animoto**, which turned photos into videos (a compute-heavy task) and rented EC2 instances instead of building a datacenter. When it launched to Facebook users in 2008 it signed up 750,000 users in three days and scaled from about 50 instances on Monday to 400 on Tuesday to 3,400 by Friday, roughly two orders of magnitude in a week, which an owned-infrastructure approach could not have met.
+Amazon in the mid 2000s had an imbalanced workload: most traffic came during the US holiday shopping season (Thanksgiving to Christmas), so much hardware provisioned for that peak sat idle outside that window, or was used for other company tasks such as forecasting or other analytics. In 2006 Amazon opened its hardware to third-party workloads over web APIs, for a fee; this was the birth of AWS and EC2. The canonical illustration is **Animoto**, which turned photos into videos (a compute-heavy task) and rented EC2 instances instead of building a datacenter. When it launched to Facebook users in April 2008 it signed up 750,000 users in three days and scaled from about 50 instances on Monday to 400 on Tuesday to 3,400 by Friday, roughly two orders of magnitude in a week, which an owned-infrastructure approach could not have met.
 
 The deeper motivation is older: John McCarthy in 1961 envisioned computing organized as a public utility, like the telephone system. Cloud computing aims to turn IT resources into a fungible utility you consume without caring which hardware serves you or where it sits. Summarized goals: on-demand elastic resources, fine-grained usage-based pricing, professional hosting/management, and API-based access, so that cost tracks demand instead of being fixed at peak-provisioning levels.
 
@@ -1122,7 +1124,7 @@ Limits on the vision: hardware dependencies cannot be fully masked even with vir
 | Model | Provider owns | Customer brings | Example |
 |---|---|---|---|
 | On-premises | nothing (you own it all) | everything | n/a |
-| IaaS (Infrastructure as a Service) | physical hardware (and virtualization) | applications, data, OS/middleware configuration | Amazon EC2 |
+| IaaS (Infrastructure as a Service) | physical hardware (and virtualization) | applications, data, runtime, middleware, and O/S | Amazon EC2 |
 | PaaS (Platform as a Service) | hardware + infrastructure + execution environment (OS, tools) | application and data | Google App Engine; early Windows Azure (.NET) |
 | SaaS (Software as a Service) | application, data, infrastructure, hardware | nothing | Gmail |
 
@@ -1133,9 +1135,9 @@ Deployment models: **public** (provider-owned, rented by tenants), **private** (
 #### Enabling technologies
 
 - **Virtualization**: makes physical hardware into fungible resources that can be repurposed per workload.
-- **Resource provisioning and scheduling**: spin resources up quickly and consistently (e.g. Mesos, YARN).
-- **Big-data processing and storage**: scale to large data (e.g. Hadoop MapReduce, Spark; append-only distributed filesystems, NoSQL stores, in-memory caches).
-- **Isolation**: software to carve out and enforce per-tenant resource slices.
+- **Resource provisioning and scheduling**: enable dynamic provisioning and scheduling of infrastructure resources (e.g. Mesos, Hadoop YARN).
+- **Big-data processing and storage**: process and store large amounts of data (e.g. Hadoop MapReduce, Spark); append-only distributed filesystems and NoSQL databases, plus storing data across distributed memories instead of repeatedly accessing disk.
+- **Isolation**: software to enable and configure software-defined slices of resources, so each customer gets its own software-defined data center.
 - **Monitoring**: for the provider to run the datacenter and for customers to inspect their own applications (e.g. Flume, CloudWatch, Log Insight).
 
 ### Do you understand what about the cloud scales make it practical? Do you understand what about the cloud scales make failures unavoidable?
@@ -1151,7 +1153,7 @@ From the **client's** side:
 
 - **Elasticity of resources and of cost.** Capacity scales (ideally instantaneously and automatically) with demand, so spending tracks usage. Animoto's two-orders-of-magnitude week is the example: owned infrastructure is either over-provisioned (paying for idle capacity) or maxed out (dropping requests and losing opportunity), whereas elastic capacity lets cost mirror revenue, assuming higher consumption correlates with higher traffic and revenue.
 
-For the cloud to deliver this it must provide **fungible** resources, dynamic resource management at very large scale (tens of thousands of nodes), performance isolation across multi-tenant environments, and guarantees on data safety and execution-environment security.
+For the cloud to deliver this it must provide **fungible** resources, dynamic resource management at very large scale (thousands and tens of thousands of nodes), performance isolation across multi-tenant environments, and guarantees on the privacy of client data and the security of the execution environment.
 
 #### Why scale makes failure unavoidable
 
@@ -1161,6 +1163,6 @@ Failure probability rises with component count because each component fails inde
 P(at least one failure) = 1 - (1 - p)^n
 ```
 
-Worked values: with `p = 0.03`, `n = 10` gives about 26%; `n = 100` gives about 95%. The lecture's other illustration: a single link with 5% failure probability has 95% success; thirty such links give `(0.95)^30 ≈ 21%` success, i.e. about 79% chance something fails. Real clouds have thousands to hundreds of thousands of components, so even with reliable hardware something is always failing. The system must therefore build in failure handling: timeouts for detection, restart and retry for recovery, and backup/checkpointing to limit loss.
+Worked values: with `p = 0.03`, `n = 10` gives about 26%; `n = 100` gives about 95%. Real clouds have thousands to hundreds of thousands of components, so even with reliable hardware something is always failing. The system must therefore build in failure handling: timeouts for detection, restart and retry for recovery, and backup, replication, and checkpointing to limit loss.
 
 P4L4 has no assigned paper; the material above is from the Datacenter Technologies lecture notes.
