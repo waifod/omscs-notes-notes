@@ -11,7 +11,8 @@ Run from the `operating-systems/` directory (or anywhere; the script cd's itself
 
 ```
 .pdfbuild/build.sh scheduling   # build one note -> scheduling.pdf
-.pdfbuild/build.sh --all        # build all 16 lecture notes
+.pdfbuild/build.sh --all        # all 16 lecture notes + the review docs present
+.pdfbuild/build.sh path/to/x.md  # any markdown file -> x.pdf here
 ```
 
 The script caches the remote `assets.omscs.io` images under `.pdfbuild/img/`
@@ -21,7 +22,7 @@ image URLs to the cache in a temp copy before building.
 
 ## Notes
 - Output is A4, serif body, images embedded and auto-sized, a "Contents" TOC
-  (depth 1, since lecture `##` headings are per video), and footer page numbers.
+  (the `##` sections), quiz spoilers shown as small headings, and footer page numbers.
 - The generated `<note>.pdf` files are personal study artifacts and are not
   committed to the notes repo.
 - This directory lives only on a personal branch, not in upstream PRs.
